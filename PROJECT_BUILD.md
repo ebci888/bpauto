@@ -23,6 +23,14 @@ The MVP is intentionally request-first:
 
 - Existing public website is preserved at `/`.
 - Public booking form posts to `/api/bookings`.
+- Public booking is request-first, not auto-confirmed.
+- Public form fields map into the backend as:
+  - first/last name -> customer and booking customer name
+  - phone/email -> customer match/contact details
+  - vehicle -> vehicle record and booking vehicle description
+  - service -> booking service needed
+  - preferred date/time -> requested schedule slot
+  - notes -> booking notes
 - Booking creates:
   - customer record
   - vehicle record
@@ -100,6 +108,14 @@ Current appointment actions:
   - actual hours
   - billable hours
   - internal notes
+
+Future availability behavior:
+
+- Owner defines regular shop hours.
+- Owner blocks unavailable times from the dashboard.
+- Public booking only offers available request slots.
+- Confirmed appointments remove that slot from public availability.
+- Owner can still override or reschedule from the dashboard when shop reality changes.
 
 ### Booking Requests
 

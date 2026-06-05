@@ -750,7 +750,7 @@
       <div class="fade-up">
         <div class="section-label">Book Online</div>
         <h2 class="section-title">Schedule Your Service in 60 Seconds</h2>
-        <p class="section-sub">Pick your service, choose a date and time, and we'll confirm your appointment — no hold music required.</p>
+        <p class="section-sub">Pick your service, choose a preferred date and time, and the shop will review and confirm your appointment — no hold music required.</p>
         <div style="margin-top:36px;display:flex;flex-direction:column;gap:16px;">
           <div style="display:flex;align-items:center;gap:14px;">
             <div class="step-num">1</div>
@@ -786,7 +786,7 @@
         </div>
       </div>
       <form class="booking-form-box fade-up" id="bookingForm">
-        <h3>📅 Book an Appointment</h3>
+        <h3>📅 Request an Appointment</h3>
         <div class="form-row">
           <div class="form-group"><label>First Name</label><input name="first_name" type="text" placeholder="John" required /></div>
           <div class="form-group"><label>Last Name</label><input name="last_name" type="text" placeholder="Smith" required /></div>
@@ -834,9 +834,9 @@
         <input type="hidden" name="preferred_time" id="preferredTime" required />
         <div class="form-group"><label>Notes (optional)</label><textarea name="notes" placeholder="Describe symptoms or any extra details about your vehicle…"></textarea></div>
         <button class="btn btn-blue" type="submit" style="width:100%;justify-content:center;padding:14px;font-size:15px;border-radius:10px;">
-          Confirm Booking →
+          Send Booking Request →
         </button>
-        <p id="bookingStatus" style="color:var(--muted);font-size:12px;text-align:center;margin-top:10px;" role="status">We'll call to confirm within 2 business hours</p>
+        <p id="bookingStatus" style="color:var(--muted);font-size:12px;text-align:center;margin-top:10px;" role="status">We'll review and confirm within 2 business hours</p>
       </form>
     </div>
   </div>
@@ -1198,7 +1198,7 @@
       if (!response.ok) {
         throw new Error(result.error || 'Could not send booking request.');
       }
-      bookingStatus.textContent = `Thanks ${payload.first_name}. We received your request for ${payload.preferred_date} at ${payload.preferred_time}. Confirmation #${result.booking.reference}.`;
+      bookingStatus.textContent = `Thanks ${payload.first_name}. We received your request for ${payload.preferred_date} at ${payload.preferred_time}. Request #${result.booking.reference}.`;
       bookingStatus.style.color = '#166534';
       bookingForm.reset();
       preferredDate.value = '';
@@ -1211,7 +1211,7 @@
       bookingStatus.style.color = '#dc2626';
     } finally {
       submitButton.disabled = false;
-      submitButton.textContent = 'Confirm Booking →';
+      submitButton.textContent = 'Send Booking Request →';
     }
   });
 
