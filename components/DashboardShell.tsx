@@ -42,6 +42,16 @@ type NotificationSetupStatus = {
   ownerAlerts: ProviderSetup;
 };
 type NotificationTestChannel = 'email' | 'sms';
+type AppointmentUpdatePayload = {
+  appointment_date: string;
+  appointment_time: string;
+  notify_customer: boolean;
+  job_status: string;
+  estimated_hours: string;
+  actual_hours: string;
+  billable_hours: string;
+  internal_notes: string;
+};
 
 const defaultDemoControls: DemoControls = {
   aiAssistant: true,
@@ -381,6 +391,28 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
     await refresh();
   }
 
+  async function deleteAppointment(appointmentId: string) {
+    const response = await fetch(`/api/appointments/${appointmentId}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || 'Could not delete appointment.');
+    }
+    await refresh();
+  }
+
+  async function restoreDeletedAppointment(appointmentId: string, payload: Record<string, unknown>) {
+    const response = await fetch(`/api/appointments/${appointmentId}/restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || 'Could not restore appointment.');
+    }
+    await refresh();
+  }
+
   async function confirmBooking(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedBooking) return;
@@ -553,6 +585,8 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
             onQuickCapture={openQuickCapture}
             onConfirmBooking={submitConfirmBooking}
             onRescheduleAppointment={submitRescheduleAppointment}
+            onDeleteAppointment={deleteAppointment}
+            onRestoreAppointment={restoreDeletedAppointment}
           />
           <QuickCapturePanel
             quickStatus={quickStatus}
@@ -1089,7 +1123,9 @@ function ScheduleView({
   onDateChange,
   onQuickCapture,
   onConfirmBooking,
-  onRescheduleAppointment
+  onRescheduleAppointment,
+  onDeleteAppointment,
+  onRestoreAppointment
 }: {
   bookings: DashboardData['bookings'];
   appointments: DashboardData['appointments'];
@@ -1101,9 +1137,14 @@ function ScheduleView({
   onQuickCapture: () => void;
   onConfirmBooking: (bookingId: string, payload: Record<string, unknown>) => Promise<void>;
   onRescheduleAppointment: (appointmentId: string, payload: Record<string, unknown>) => Promise<void>;
+  onDeleteAppointment: (appointmentId: string) => Promise<void>;
+  onRestoreAppointment: (appointmentId: string, payload: Record<string, unknown>) => Promise<void>;
 }) {
   const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
   const [draggedEntry, setDraggedEntry] = useState<ScheduleEntry | null>(null);
+  const [pendingMove, setPendingMove] = useState<{ entry: ScheduleEntry; date: string; time: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ScheduleEntry | null>(null);
+  const [lastDeleted, setLastDeleted] = useState<{ entry: ScheduleEntry; expiresAt: number } | null>(null);
   const [actionStatus, setActionStatus] = useState('');
   const bookingMap = new Map(bookings.map((booking) => [booking.id, booking]));
   const dates = mode === 'day' ? [selectedDate] : mode === 'week' ? weekDays(selectedDate) : monthDays(selectedDate);
@@ -1174,10 +1215,88 @@ function ScheduleView({
     return entry.tone === 'requested' ? 45 : 60;
   }
 
+  function payloadFromEntry(entry: ScheduleEntry, overrides: Partial<AppointmentUpdatePayload> = {}): AppointmentUpdatePayload {
+    return {
+      appointment_date: overrides.appointment_date ?? entry.date,
+      appointment_time: overrides.appointment_time ?? entry.time,
+      notify_customer: overrides.notify_customer ?? true,
+      job_status: overrides.job_status ?? entry.jobStatus,
+      estimated_hours: overrides.estimated_hours ?? String(entry.estimatedHours ?? ''),
+      actual_hours: overrides.actual_hours ?? String(entry.actualHours ?? ''),
+      billable_hours: overrides.billable_hours ?? String(entry.billableHours ?? ''),
+      internal_notes: overrides.internal_notes ?? entry.internalNotes
+    };
+  }
+
   function openDroppedEntry(entry: ScheduleEntry, date: string, minutes: number) {
-    setSelectedEntry({ ...entry, date, time: scheduleTimeLabel(minutes) });
+    const time = scheduleTimeLabel(minutes);
+    if (entry.tone === 'confirmed' && entry.appointmentId) {
+      setPendingMove({ entry, date, time });
+    } else {
+      setSelectedEntry({ ...entry, date, time });
+    }
     setDraggedEntry(null);
   }
+
+  function openDroppedMonthEntry(entry: ScheduleEntry, date: string) {
+    if (entry.tone === 'confirmed' && entry.appointmentId) {
+      setPendingMove({ entry, date, time: entry.time });
+    } else {
+      setSelectedEntry({ ...entry, date });
+    }
+    setDraggedEntry(null);
+  }
+
+  async function confirmPendingMove() {
+    if (!pendingMove?.entry.appointmentId) return;
+    setActionStatus('Rescheduling...');
+    try {
+      await onRescheduleAppointment(
+        pendingMove.entry.appointmentId,
+        payloadFromEntry(pendingMove.entry, {
+          appointment_date: pendingMove.date,
+          appointment_time: pendingMove.time,
+          notify_customer: true
+        })
+      );
+      setPendingMove(null);
+      setActionStatus('');
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : 'Could not reschedule appointment.');
+    }
+  }
+
+  async function confirmDeleteAppointment() {
+    if (!deleteTarget?.appointmentId) return;
+    setActionStatus('Deleting appointment...');
+    try {
+      await onDeleteAppointment(deleteTarget.appointmentId);
+      setLastDeleted({ entry: deleteTarget, expiresAt: Date.now() + 10000 });
+      setSelectedEntry(null);
+      setDeleteTarget(null);
+      setActionStatus('');
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : 'Could not delete appointment.');
+    }
+  }
+
+  async function undoDeleteAppointment() {
+    if (!lastDeleted?.entry.appointmentId) return;
+    setActionStatus('Restoring appointment...');
+    try {
+      await onRestoreAppointment(lastDeleted.entry.appointmentId, payloadFromEntry(lastDeleted.entry, { notify_customer: false }));
+      setLastDeleted(null);
+      setActionStatus('');
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : 'Could not restore appointment.');
+    }
+  }
+
+  useEffect(() => {
+    if (!lastDeleted) return;
+    const timeout = window.setTimeout(() => setLastDeleted(null), Math.max(0, lastDeleted.expiresAt - Date.now()));
+    return () => window.clearTimeout(timeout);
+  }, [lastDeleted]);
 
   async function handleScheduleAction(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1350,8 +1469,7 @@ function ScheduleView({
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => {
                 if (draggedEntry) {
-                  setSelectedEntry({ ...draggedEntry, date });
-                  setDraggedEntry(null);
+                  openDroppedMonthEntry(draggedEntry, date);
                 }
               }}
             >
@@ -1453,6 +1571,11 @@ function ScheduleView({
               </label>
               <div className="job-modal-actions">
                 <button type="submit">{selectedEntry.tone === 'requested' ? 'Confirm' : 'Save Change'}</button>
+                {selectedEntry.tone === 'confirmed' && (
+                  <button type="button" className="danger-action" onClick={() => setDeleteTarget(selectedEntry)}>
+                    Delete Appointment
+                  </button>
+                )}
                 <button type="button" onClick={() => setSelectedEntry(null)}>
                   Cancel
                 </button>
@@ -1460,6 +1583,77 @@ function ScheduleView({
               <p role="status">{actionStatus}</p>
             </form>
           </section>
+        </div>
+      )}
+      {pendingMove && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setPendingMove(null)}>
+          <section className="job-modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="move-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="job-modal-header">
+              <div>
+                <p>Confirm reschedule</p>
+                <h3 id="move-modal-title">Move {pendingMove.entry.title}?</h3>
+                <span>
+                  From {pendingMove.entry.date} at {pendingMove.entry.time} to {pendingMove.date} at {pendingMove.time}. Customer notification is enabled.
+                </span>
+              </div>
+              <button type="button" aria-label="Cancel reschedule" onClick={() => setPendingMove(null)}>
+                Close
+              </button>
+            </div>
+            <div className="confirm-modal-body">
+              <p>This changes the confirmed shop schedule. The customer can be notified if messaging is configured.</p>
+              <div className="job-modal-actions">
+                <button type="button" onClick={confirmPendingMove}>
+                  Confirm Move
+                </button>
+                <button type="button" onClick={() => setPendingMove(null)}>
+                  Keep Original
+                </button>
+              </div>
+              <p role="status">{actionStatus}</p>
+            </div>
+          </section>
+        </div>
+      )}
+      {deleteTarget && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setDeleteTarget(null)}>
+          <section className="job-modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="job-modal-header">
+              <div>
+                <p>Delete appointment</p>
+                <h3 id="delete-modal-title">Delete {deleteTarget.title}?</h3>
+                <span>
+                  This removes the appointment from the active schedule. You will have 10 seconds to undo.
+                </span>
+              </div>
+              <button type="button" aria-label="Cancel delete" onClick={() => setDeleteTarget(null)}>
+                Close
+              </button>
+            </div>
+            <div className="confirm-modal-body">
+              <p>This cannot be restored after the undo window unless someone manually re-confirms the booking.</p>
+              <div className="job-modal-actions">
+                <button type="button" className="danger-action" onClick={confirmDeleteAppointment}>
+                  Delete Appointment
+                </button>
+                <button type="button" onClick={() => setDeleteTarget(null)}>
+                  Cancel
+                </button>
+              </div>
+              <p role="status">{actionStatus}</p>
+            </div>
+          </section>
+        </div>
+      )}
+      {lastDeleted && (
+        <div className="undo-toast" role="status">
+          <span>
+            {lastDeleted.entry.title} was removed from the schedule.
+            {actionStatus ? <small>{actionStatus}</small> : null}
+          </span>
+          <button type="button" onClick={undoDeleteAppointment}>
+            Undo
+          </button>
         </div>
       )}
     </section>

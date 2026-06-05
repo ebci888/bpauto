@@ -455,6 +455,10 @@ a {
   background: rgba(37, 99, 235, 0.08);
 }
 
+.time-slot-cell:has(+ .time-event) {
+  cursor: pointer;
+}
+
 .time-event {
   position: absolute;
   left: 7px;
@@ -487,6 +491,12 @@ a {
 
 .time-event:active {
   cursor: grabbing;
+}
+
+.time-event:hover,
+.schedule-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
 }
 
 .time-event span,
@@ -819,12 +829,83 @@ a {
   border: 1px solid var(--dashboard-line);
 }
 
+.job-modal-actions button.danger-action,
+.job-modal-actions .danger-action {
+  color: #fff;
+  background: var(--dashboard-red);
+  border-color: var(--dashboard-red);
+}
+
 .job-modal-form > p {
   align-self: center;
   min-height: 20px;
   margin: 0;
   color: var(--dashboard-red);
   font-weight: 800;
+}
+
+.confirm-modal {
+  width: min(520px, 100%);
+}
+
+.confirm-modal-body {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.confirm-modal-body > p {
+  margin: 0;
+  color: var(--dashboard-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.confirm-modal-body > p[role="status"] {
+  min-height: 20px;
+  color: var(--dashboard-red);
+  font-weight: 850;
+}
+
+.undo-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(420px, calc(100vw - 32px));
+  padding: 13px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  background: #111827;
+  color: #fff;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22);
+}
+
+.undo-toast span {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.undo-toast small {
+  display: block;
+  margin-top: 3px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.undo-toast button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--dashboard-gold);
+  color: #111827;
+  font-weight: 900;
 }
 
 .quick-capture-form {

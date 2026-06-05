@@ -765,6 +765,82 @@ export async function rescheduleAppointment(id: string, raw: unknown) {
   return updatedAppointment;
 }
 
+async function assertOpenConfirmedSlot(input: { id: string; appointment_date: string; appointment_time: string }) {
+  const admin = getSupabaseAdmin();
+  const { data: existing } = await admin
+    .from('appointments')
+    .select('id')
+    .eq('appointment_date', input.appointment_date)
+    .eq('appointment_time', input.appointment_time)
+    .eq('status', 'confirmed')
+    .neq('id', input.id)
+    .maybeSingle();
+  if (existing) {
+    throw new Error('That appointment slot is already confirmed.');
+  }
+}
+
+export async function cancelAppointment(id: string) {
+  const admin = getSupabaseAdmin();
+  const { data: appointment, error: appointmentError } = await admin.from('appointments').select('*').eq('id', id).single();
+  if (appointmentError) throw appointmentError;
+
+  const { data: cancelled, error: cancelError } = await admin
+    .from('appointments')
+    .update({ status: 'cancelled' })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (cancelError) throw cancelError;
+
+  if (appointment.booking_request_id) {
+    const { error: bookingError } = await admin.from('booking_requests').update({ status: 'cancelled' }).eq('id', appointment.booking_request_id);
+    if (bookingError) throw bookingError;
+  }
+
+  return cancelled;
+}
+
+export async function restoreAppointment(id: string, raw: unknown) {
+  const input = rescheduleAppointmentSchema.parse(raw);
+  await assertOpenConfirmedSlot({ id, appointment_date: input.appointment_date, appointment_time: input.appointment_time });
+
+  const admin = getSupabaseAdmin();
+  const { data: appointment, error: appointmentError } = await admin.from('appointments').select('*').eq('id', id).single();
+  if (appointmentError) throw appointmentError;
+
+  const { data: restored, error: restoreError } = await admin
+    .from('appointments')
+    .update({
+      appointment_date: input.appointment_date,
+      appointment_time: input.appointment_time,
+      status: 'confirmed',
+      job_status: cleanJobStatus(input.job_status),
+      estimated_hours: nullableHours(input.estimated_hours),
+      actual_hours: nullableHours(input.actual_hours),
+      billable_hours: nullableHours(input.billable_hours),
+      internal_notes: clean(input.internal_notes) || null
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (restoreError) throw restoreError;
+
+  if (appointment.booking_request_id) {
+    const { error: bookingError } = await admin
+      .from('booking_requests')
+      .update({
+        status: 'confirmed',
+        preferred_date: input.appointment_date,
+        preferred_time: input.appointment_time
+      })
+      .eq('id', appointment.booking_request_id);
+    if (bookingError) throw bookingError;
+  }
+
+  return restored;
+}
+
 export async function getDashboardData() {
   const admin = getSupabaseAdmin();
   const [bookings, customers, vehicles, queueItems, appointments, notifications, aiConversations, aiMessages, shopHours, specialHours, blockedTimes] = await Promise.all([
