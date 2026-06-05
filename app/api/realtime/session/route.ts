@@ -22,9 +22,43 @@ Conversation rules:
 - Keep replies short enough for a phone call.
 `;
 
+function normalizedOpenAiApiKey() {
+  return (process.env.OPENAI_API_KEY || '')
+    .trim()
+    .replace(/^Bearer\s+/i, '')
+    .replace(/^['"]|['"]$/g, '');
+}
+
+function parseOpenAiError(body: string) {
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string; code?: string; type?: string } };
+    return parsed.error || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(request: Request) {
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: 'OPENAI_API_KEY is not configured.' }, { status: 500 });
+  const openAiApiKey = normalizedOpenAiApiKey();
+
+  if (!openAiApiKey) {
+    return NextResponse.json(
+      {
+        error: 'Live voice is not configured yet. Please use text chat or book online for now.',
+        code: 'openai_key_missing'
+      },
+      { status: 500 }
+    );
+  }
+
+  if (!openAiApiKey.startsWith('sk-')) {
+    return NextResponse.json(
+      {
+        error: 'Live voice is not configured yet. Please use text chat or book online for now.',
+        code: 'openai_key_invalid_shape'
+      },
+      { status: 500 }
+    );
   }
 
   const sdp = await request.text();
@@ -38,7 +72,7 @@ export async function POST(request: Request) {
     'session',
     JSON.stringify({
       type: 'realtime',
-      model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2',
+      model: process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime',
       instructions: realtimeInstructions,
       output_modalities: ['audio'],
       audio: {
@@ -64,17 +98,32 @@ export async function POST(request: Request) {
   const response = await fetch('https://api.openai.com/v1/realtime/calls', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+      Authorization: `Bearer ${openAiApiKey}`
     },
     body: formData
   });
 
   const answer = await response.text();
   if (!response.ok) {
-    return new Response(answer || 'Could not start realtime voice session.', {
+    const upstreamError = parseOpenAiError(answer);
+    const authFailure = response.status === 401 || upstreamError?.code === 'invalid_issuer' || upstreamError?.code === 'invalid_api_key';
+
+    console.warn('OpenAI realtime session failed', {
       status: response.status,
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+      code: upstreamError?.code || null,
+      type: upstreamError?.type || null
     });
+
+    return NextResponse.json(
+      {
+        error: authFailure
+          ? 'Live voice is not configured yet. Please use text chat or book online for now.'
+          : 'Live voice could not start. Please use text chat or book online for now.',
+        code: upstreamError?.code || 'openai_realtime_error',
+        upstream_status: response.status
+      },
+      { status: authFailure ? 500 : response.status }
+    );
   }
 
   return new Response(answer, {

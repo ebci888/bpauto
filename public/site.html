@@ -2096,6 +2096,9 @@
   function microphoneErrorMessage(error) {
     const name = error?.name || '';
     const message = String(error?.message || '').toLowerCase();
+    if (message.includes('live voice is not configured') || message.includes('openai') || message.includes('invalid_issuer') || message.includes('invalid api')) {
+      return 'Live voice is not configured yet. Use Text chat or Book online for now.';
+    }
     if (name === 'NotAllowedError' || name === 'SecurityError' || message.includes('permission')) {
       return 'Microphone permission is blocked. Allow microphone access for this site and tap the mic again.';
     }
@@ -2106,6 +2109,19 @@
       return 'The microphone is busy or unavailable. Close other apps using it, then tap the mic again.';
     }
     return error instanceof Error ? error.message : 'Live voice could not start. You can still type below.';
+  }
+
+  async function readRealtimeSessionError(response) {
+    const body = await response.text();
+    try {
+      const parsed = JSON.parse(body);
+      return parsed?.error || parsed?.message || 'Live voice could not start. Please use text chat or book online for now.';
+    } catch {
+      if (response.status === 401 || body.toLowerCase().includes('invalid_issuer')) {
+        return 'Live voice is not configured yet. Use Text chat or Book online for now.';
+      }
+      return body || 'Live voice could not start. Please use text chat or book online for now.';
+    }
   }
 
   function updateAssistantMicState() {
@@ -2236,8 +2252,8 @@
         headers: { 'Content-Type': 'application/sdp' },
         body: offer.sdp
       });
+      if (!response.ok) throw new Error(await readRealtimeSessionError(response));
       const answerSdp = await response.text();
-      if (!response.ok) throw new Error(answerSdp || 'Could not start live voice.');
 
       await peer.setRemoteDescription({ type: 'answer', sdp: answerSdp });
     } catch (error) {
