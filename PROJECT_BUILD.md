@@ -133,7 +133,7 @@ Built availability behavior:
 ### Booking Requests
 
 - Owner can view all booking requests.
-- Requested bookings can be confirmed.
+- Requested bookings can be reviewed and confirmed in a modal.
 - Duplicate confirmed appointment slots are blocked.
 
 ### Today Queue
@@ -212,7 +212,7 @@ Expected behavior:
 - Desktop: calendar views use available width without feeling sparse.
 
 Input/review interactions should open in modals instead of expanding the page height.
-Current job details and Quick Capture interactions use a modal on desktop and a bottom-sheet style modal on mobile.
+Current job details, Booking Request confirmation, and Quick Capture interactions use a modal on desktop and a bottom-sheet style modal on mobile.
 
 ## Optional Add-On Modules
 

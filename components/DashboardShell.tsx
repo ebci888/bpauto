@@ -110,6 +110,8 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [quickStatus, setQuickStatus] = useState('');
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null);
+  const [bookingConfirmStatus, setBookingConfirmStatus] = useState('');
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [availabilityStatus, setAvailabilityStatus] = useState('');
 
@@ -142,6 +144,16 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
 
   function closeBlockModal() {
     setBlockModalOpen(false);
+  }
+
+  function openBookingConfirm(booking: BookingRequest) {
+    setBookingConfirmStatus('');
+    setSelectedBooking(booking);
+  }
+
+  function closeBookingConfirm() {
+    setSelectedBooking(null);
+    setBookingConfirmStatus('');
   }
 
   async function signOut() {
@@ -205,15 +217,29 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
     await refresh();
   }
 
-  async function confirmBooking(event: React.FormEvent<HTMLFormElement>, booking: BookingRequest) {
+  async function confirmBooking(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setConfirming(booking.id);
+    if (!selectedBooking) return;
+    setConfirming(selectedBooking.id);
+    setBookingConfirmStatus('Confirming...');
     const form = event.currentTarget;
-    const payload = Object.fromEntries(new FormData(form).entries());
+    const formData = new FormData(form);
+    const payload = {
+      appointment_date: String(formData.get('appointment_date') || ''),
+      appointment_time: String(formData.get('appointment_time') || ''),
+      notify_customer: formData.get('notify_customer') === 'on',
+      job_status: String(formData.get('job_status') || 'scheduled'),
+      estimated_hours: String(formData.get('estimated_hours') || ''),
+      actual_hours: String(formData.get('actual_hours') || ''),
+      billable_hours: String(formData.get('billable_hours') || ''),
+      internal_notes: String(formData.get('internal_notes') || '')
+    };
     try {
-      await submitConfirmBooking(booking.id, { ...payload, notify_customer: true });
+      await submitConfirmBooking(selectedBooking.id, payload);
+      setBookingConfirmStatus('Appointment confirmed.');
+      closeBookingConfirm();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Could not confirm appointment.');
+      setBookingConfirmStatus(error instanceof Error ? error.message : 'Could not confirm appointment.');
     }
     setConfirming(null);
   }
@@ -361,13 +387,11 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
                     </span>
                   </div>
                   {booking.status === 'requested' && (
-                    <form className="confirm-form" onSubmit={(event) => confirmBooking(event, booking)}>
-                      <input name="appointment_date" type="date" defaultValue={booking.preferred_date} required />
-                      <input name="appointment_time" defaultValue={booking.preferred_time} required />
-                      <button type="submit" disabled={confirming === booking.id}>
-                        {confirming === booking.id ? 'Confirming...' : 'Confirm Appointment'}
+                    <div className="record-actions">
+                      <button type="button" onClick={() => openBookingConfirm(booking)}>
+                        Review / Confirm
                       </button>
-                    </form>
+                    </div>
                   )}
                 </article>
               ))
@@ -375,6 +399,77 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
               <EmptyState text="No booking requests yet." />
             )}
           </div>
+          {selectedBooking && (
+            <div className="modal-backdrop" role="presentation" onMouseDown={closeBookingConfirm}>
+              <section className="job-modal" role="dialog" aria-modal="true" aria-labelledby="booking-confirm-title" onMouseDown={(event) => event.stopPropagation()}>
+                <div className="job-modal-header">
+                  <div>
+                    <p>Confirm request</p>
+                    <h3 id="booking-confirm-title">
+                      {selectedBooking.customer_name} · {selectedBooking.reference}
+                    </h3>
+                    <span>
+                      {selectedBooking.service_needed} for {selectedBooking.vehicle_description}
+                    </span>
+                  </div>
+                  <button type="button" aria-label="Close booking confirmation" onClick={closeBookingConfirm}>
+                    Close
+                  </button>
+                </div>
+                <form className="job-modal-form" onSubmit={confirmBooking}>
+                  <label>
+                    <span>Date</span>
+                    <input name="appointment_date" type="date" defaultValue={selectedBooking.preferred_date} required />
+                  </label>
+                  <label>
+                    <span>Time</span>
+                    <input name="appointment_time" defaultValue={selectedBooking.preferred_time} required />
+                  </label>
+                  <label>
+                    <span>Job status</span>
+                    <select name="job_status" defaultValue="scheduled">
+                      <option value="scheduled">Scheduled</option>
+                      <option value="checked_in">Checked in</option>
+                      <option value="in_progress">In progress</option>
+                      <option value="waiting_parts">Waiting for parts</option>
+                      <option value="paused">Paused</option>
+                      <option value="ready">Ready</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Estimated hours</span>
+                    <input name="estimated_hours" type="number" min="0" step="0.25" />
+                  </label>
+                  <label>
+                    <span>Actual hours</span>
+                    <input name="actual_hours" type="number" min="0" step="0.25" />
+                  </label>
+                  <label>
+                    <span>Billable hours</span>
+                    <input name="billable_hours" type="number" min="0" step="0.25" />
+                  </label>
+                  <label className="wide-field">
+                    <span>Internal notes</span>
+                    <textarea name="internal_notes" defaultValue={selectedBooking.notes || ''} placeholder="Confirm details, special instructions, estimate notes..." />
+                  </label>
+                  <label className="notify-toggle">
+                    <input name="notify_customer" type="checkbox" defaultChecked />
+                    <span>Notify customer when providers are configured</span>
+                  </label>
+                  <div className="job-modal-actions">
+                    <button type="submit" disabled={confirming === selectedBooking.id}>
+                      {confirming === selectedBooking.id ? 'Confirming...' : 'Confirm Appointment'}
+                    </button>
+                    <button type="button" onClick={closeBookingConfirm}>
+                      Cancel
+                    </button>
+                  </div>
+                  <p role="status">{bookingConfirmStatus}</p>
+                </form>
+              </section>
+            </div>
+          )}
         </Panel>
       )}
 

@@ -111,7 +111,6 @@ a {
 .quick-capture-form input,
 .quick-capture-form select,
 .quick-capture-form textarea,
-.confirm-form input,
 .job-modal-form input,
 .job-modal-form select,
 .job-modal-form textarea {
@@ -138,7 +137,6 @@ a {
 .job-modal-actions button,
 .availability-toolbar button,
 .plain-danger,
-.confirm-form button,
 .record-actions button,
 .dashboard-tabs button {
   border: 0;
@@ -871,8 +869,7 @@ a {
 
 .meta-row,
 .missing-row,
-.record-actions,
-.confirm-form {
+.record-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
@@ -890,25 +887,12 @@ a {
   border: 1px dashed var(--dashboard-gold);
 }
 
-.record-actions button,
-.confirm-form button {
+.record-actions button {
   min-height: 36px;
   padding: 0 12px;
   color: var(--dashboard-ink);
   background: #fff;
   border: 1px solid var(--dashboard-line);
-}
-
-.confirm-form input {
-  width: auto;
-  min-height: 38px;
-  padding: 0 10px;
-}
-
-.confirm-form button {
-  color: #fff;
-  border-color: var(--dashboard-blue);
-  background: var(--dashboard-blue);
 }
 
 .plain-danger {
