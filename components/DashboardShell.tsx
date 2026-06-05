@@ -39,6 +39,7 @@ type NotificationSetupStatus = {
   twilio: ProviderSetup;
   ownerAlerts: ProviderSetup;
 };
+type NotificationTestChannel = 'email' | 'sms';
 
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'schedule', label: 'Schedule' },
@@ -131,6 +132,8 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   const [availabilityStatus, setAvailabilityStatus] = useState('');
   const [notificationSetup, setNotificationSetup] = useState<NotificationSetupStatus | null>(null);
   const [notificationSetupStatus, setNotificationSetupStatus] = useState('');
+  const [notificationTestStatus, setNotificationTestStatus] = useState('');
+  const [notificationTestBusy, setNotificationTestBusy] = useState<NotificationTestChannel | null>(null);
 
   const todayQueue = useMemo(() => data.queueItems.filter((item) => item.queue_date === todayKey()), [data.queueItems]);
   const incomplete = useMemo(() => data.queueItems.filter((item) => item.is_incomplete), [data.queueItems]);
@@ -166,6 +169,29 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
       return;
     }
     setData(await response.json());
+  }
+
+  async function sendTestNotification(channel: NotificationTestChannel) {
+    setNotificationTestBusy(channel);
+    setNotificationTestStatus(channel === 'email' ? 'Sending test email...' : 'Sending test SMS...');
+
+    try {
+      const response = await fetch('/api/notifications/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not send test notification.');
+
+      await refresh();
+      setNotificationSetup(null);
+      setNotificationTestStatus(channel === 'email' ? 'Test email logged.' : 'Test SMS logged.');
+    } catch (error) {
+      setNotificationTestStatus(error instanceof Error ? error.message : 'Could not send test notification.');
+    } finally {
+      setNotificationTestBusy(null);
+    }
   }
 
   function openQuickCapture() {
@@ -646,7 +672,13 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
 
       {tab === 'notifications' && (
         <Panel title="Notification Log" subtitle="Every owner alert, customer email, and customer SMS is tracked.">
-          <NotificationSetupPanel setup={notificationSetup} status={notificationSetupStatus} />
+          <NotificationSetupPanel
+            setup={notificationSetup}
+            status={notificationSetupStatus}
+            testStatus={notificationTestStatus}
+            busy={notificationTestBusy}
+            onTest={sendTestNotification}
+          />
           <SimpleList
             empty="No notifications yet."
             rows={data.notifications.map((notification) => ({
@@ -1388,7 +1420,19 @@ function QueueList({ items, cleanup = false, onUpdate }: { items: QueueItem[]; c
   );
 }
 
-function NotificationSetupPanel({ setup, status }: { setup: NotificationSetupStatus | null; status: string }) {
+function NotificationSetupPanel({
+  setup,
+  status,
+  testStatus,
+  busy,
+  onTest
+}: {
+  setup: NotificationSetupStatus | null;
+  status: string;
+  testStatus: string;
+  busy: NotificationTestChannel | null;
+  onTest: (channel: NotificationTestChannel) => void;
+}) {
   const rows = setup
     ? [
         {
@@ -1442,6 +1486,15 @@ function NotificationSetupPanel({ setup, status }: { setup: NotificationSetupSta
             {!!row.setup.optionalEnv?.length && <p>Optional: {row.setup.optionalEnv.join(', ')}</p>}
           </article>
         ))}
+      </div>
+      <div className="notification-test-actions">
+        <button type="button" disabled={busy !== null} onClick={() => onTest('email')}>
+          {busy === 'email' ? 'Testing Email...' : 'Send Test Email'}
+        </button>
+        <button type="button" disabled={busy !== null} onClick={() => onTest('sms')}>
+          {busy === 'sms' ? 'Testing SMS...' : 'Send Test SMS'}
+        </button>
+        <p role="status">{testStatus}</p>
       </div>
     </section>
   );

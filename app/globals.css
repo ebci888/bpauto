@@ -136,6 +136,7 @@ a {
 .quick-capture-actions button,
 .job-modal-actions button,
 .availability-toolbar button,
+.notification-test-actions button,
 .plain-danger,
 .record-actions button,
 .dashboard-tabs button {
@@ -873,6 +874,40 @@ a {
   background: #f8fafc;
 }
 
+.notification-test-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.notification-test-actions button {
+  min-height: 42px;
+  padding: 0 14px;
+  color: #fff;
+  background: var(--dashboard-blue);
+}
+
+.notification-test-actions button:nth-of-type(2) {
+  color: var(--dashboard-ink);
+  background: #fff;
+  border: 1px solid var(--dashboard-line);
+}
+
+.notification-test-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.64;
+}
+
+.notification-test-actions p {
+  min-height: 20px;
+  margin: 0;
+  color: var(--dashboard-muted);
+  font-size: 13px;
+  font-weight: 750;
+}
+
 .record-card {
   border: 1px solid var(--dashboard-line);
   border-radius: 10px;
@@ -1021,7 +1056,8 @@ a {
 
   .job-modal-header button,
   .job-modal-actions button,
-  .quick-capture-actions button {
+  .quick-capture-actions button,
+  .notification-test-actions button {
     width: 100%;
   }
 
@@ -1047,6 +1083,11 @@ a {
   }
 
   .availability-actions {
+    flex-direction: column;
+  }
+
+  .notification-test-actions {
+    align-items: stretch;
     flex-direction: column;
   }
 

@@ -175,6 +175,7 @@ Built behavior:
 - Brevo/Twilio are not required for MVP.
 - If providers are missing, events are logged as `skipped`.
 - Notification tab includes a provider setup checklist showing Brevo/Twilio readiness and missing env vars.
+- Owner can trigger test email/SMS events from the Notification Log after adding provider credentials.
 
 ## Current Notification Scope
 
