@@ -6,9 +6,8 @@
 - Let the owner drag cards in week/month view, then confirm the new day/time.
 - Log customer notification intent for confirmation and reschedule changes.
 - Add multi-day jobs for repairs that stay in the shop.
-- Track job status: scheduled, in progress, waiting for parts, paused, ready, complete.
-- Track estimated hours, actual time spent, and billable hours.
-- Add visit notes/work notes for each vehicle visit.
+- Add mechanic assignment.
+- Add customer-facing visit notes/work notes for each vehicle visit.
 
 ## Customer SMS Flow
 

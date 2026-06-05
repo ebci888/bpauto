@@ -3,6 +3,11 @@ import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notifications';
 import { clean, missingFields, normalizePhone, referenceCode, todayKey, upperClean } from '@/lib/text';
 
+const hoursSchema = z.preprocess(
+  (value) => (value === '' || value === null || value === undefined ? null : Number(value)),
+  z.number().nonnegative().nullable()
+);
+
 export const bookingRequestSchema = z.object({
   first_name: z.string().trim().min(1),
   last_name: z.string().trim().min(1),
@@ -31,14 +36,35 @@ export const quickCaptureSchema = z.object({
 export const confirmBookingSchema = z.object({
   appointment_date: z.string().trim().min(1),
   appointment_time: z.string().trim().min(1),
+  job_status: z.string().optional().default('scheduled'),
+  estimated_hours: hoursSchema.optional().default(null),
+  actual_hours: hoursSchema.optional().default(null),
+  billable_hours: hoursSchema.optional().default(null),
+  internal_notes: z.string().optional().default(''),
   notify_customer: z.coerce.boolean().optional().default(true)
 });
 
 export const rescheduleAppointmentSchema = z.object({
   appointment_date: z.string().trim().min(1),
   appointment_time: z.string().trim().min(1),
+  job_status: z.string().optional().default('scheduled'),
+  estimated_hours: hoursSchema.optional().default(null),
+  actual_hours: hoursSchema.optional().default(null),
+  billable_hours: hoursSchema.optional().default(null),
+  internal_notes: z.string().optional().default(''),
   notify_customer: z.coerce.boolean().optional().default(true)
 });
+
+const jobStatuses = new Set(['scheduled', 'checked_in', 'in_progress', 'waiting_parts', 'paused', 'ready', 'completed']);
+
+function cleanJobStatus(value: string | null | undefined) {
+  return value && jobStatuses.has(value) ? value : 'scheduled';
+}
+
+function nullableHours(value: number | null | undefined) {
+  if (value === null || value === undefined) return null;
+  return Number(value);
+}
 
 async function touchCustomer(input: {
   name?: string;
@@ -360,7 +386,12 @@ export async function confirmBookingRequest(id: string, raw: unknown) {
       vehicle_id: booking.vehicle_id,
       appointment_date: input.appointment_date,
       appointment_time: input.appointment_time,
-      status: 'confirmed'
+      status: 'confirmed',
+      job_status: cleanJobStatus(input.job_status),
+      estimated_hours: nullableHours(input.estimated_hours),
+      actual_hours: nullableHours(input.actual_hours),
+      billable_hours: nullableHours(input.billable_hours),
+      internal_notes: clean(input.internal_notes) || null
     })
     .select('*')
     .single();
@@ -423,7 +454,12 @@ export async function rescheduleAppointment(id: string, raw: unknown) {
     .from('appointments')
     .update({
       appointment_date: input.appointment_date,
-      appointment_time: input.appointment_time
+      appointment_time: input.appointment_time,
+      job_status: cleanJobStatus(input.job_status),
+      estimated_hours: nullableHours(input.estimated_hours),
+      actual_hours: nullableHours(input.actual_hours),
+      billable_hours: nullableHours(input.billable_hours),
+      internal_notes: clean(input.internal_notes) || null
     })
     .eq('id', id)
     .select('*')

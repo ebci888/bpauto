@@ -4,6 +4,7 @@ export type QueueSource = 'website_booking' | 'dashboard_quick_capture';
 export type QueueStatus = 'waiting' | 'dropped_off' | '';
 export type Priority = 'urgent' | 'high' | '';
 export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped';
+export type JobStatus = 'scheduled' | 'checked_in' | 'in_progress' | 'waiting_parts' | 'paused' | 'ready' | 'completed';
 
 export type DashboardData = {
   bookings: BookingRequest[];
@@ -88,6 +89,11 @@ export type Appointment = {
   appointment_date: string;
   appointment_time: string;
   status: BookingStatus;
+  job_status: JobStatus;
+  estimated_hours: number | null;
+  actual_hours: number | null;
+  billable_hours: number | null;
+  internal_notes: string | null;
   created_at: string;
   updated_at: string;
 };

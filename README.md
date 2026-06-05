@@ -53,10 +53,11 @@ Open:
 
 ## Database
 
-Apply the Supabase migration:
+Apply the Supabase migrations in order:
 
 ```bash
 supabase/migrations/001_bp_auto_os.sql
+supabase/migrations/002_appointment_job_details.sql
 ```
 
 After adding Supabase environment variables and applying the migration, check:

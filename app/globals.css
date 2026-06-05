@@ -112,7 +112,9 @@ a {
 .quick-capture-form select,
 .quick-capture-form textarea,
 .confirm-form input,
-.schedule-action-panel input {
+.schedule-action-panel input,
+.schedule-action-panel select,
+.schedule-action-panel textarea {
   width: 100%;
   border: 1.5px solid var(--dashboard-line);
   border-radius: 8px;
@@ -470,11 +472,19 @@ a {
 }
 
 .schedule-event p,
+.schedule-event em,
 .schedule-empty {
   margin: 4px 0 0;
   color: var(--dashboard-muted);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.schedule-event em {
+  display: block;
+  font-style: normal;
+  font-weight: 850;
+  text-transform: capitalize;
 }
 
 .schedule-empty {
@@ -523,9 +533,20 @@ a {
   gap: 12px;
 }
 
-.schedule-action-panel input {
+.schedule-action-panel input,
+.schedule-action-panel select {
   min-height: 44px;
   padding: 0 12px;
+}
+
+.schedule-action-panel textarea {
+  min-height: 92px;
+  padding: 12px;
+  resize: vertical;
+}
+
+.wide-field {
+  grid-column: 1 / -1;
 }
 
 .notify-toggle {

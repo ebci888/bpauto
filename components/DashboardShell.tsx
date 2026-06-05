@@ -21,6 +21,11 @@ type ScheduleEntry = {
   tone: 'requested' | 'confirmed';
   bookingId: string | null;
   appointmentId: string | null;
+  jobStatus: string;
+  estimatedHours: number | null;
+  actualHours: number | null;
+  billableHours: number | null;
+  internalNotes: string;
 };
 
 const tabs: Array<{ id: Tab; label: string }> = [
@@ -424,7 +429,12 @@ function ScheduleView({
       body: `${booking.service_needed} · ${booking.vehicle_description}`,
       tone: 'requested',
       bookingId: booking.id,
-      appointmentId: null
+      appointmentId: null,
+      jobStatus: 'scheduled',
+      estimatedHours: null,
+      actualHours: null,
+      billableHours: null,
+      internalNotes: ''
     }));
 
   const confirmedEntries: ScheduleEntry[] = appointments
@@ -439,7 +449,12 @@ function ScheduleView({
         body: booking ? `${booking.service_needed} · ${booking.vehicle_description}` : 'Appointment confirmed',
         tone: 'confirmed',
         bookingId: appointment.booking_request_id,
-        appointmentId: appointment.id
+        appointmentId: appointment.id,
+        jobStatus: appointment.job_status,
+        estimatedHours: appointment.estimated_hours,
+        actualHours: appointment.actual_hours,
+        billableHours: appointment.billable_hours,
+        internalNotes: appointment.internal_notes || ''
       };
     });
 
@@ -456,7 +471,12 @@ function ScheduleView({
     const payload = {
       appointment_date: String(formData.get('appointment_date') || ''),
       appointment_time: String(formData.get('appointment_time') || ''),
-      notify_customer: formData.get('notify_customer') === 'on'
+      notify_customer: formData.get('notify_customer') === 'on',
+      job_status: String(formData.get('job_status') || 'scheduled'),
+      estimated_hours: String(formData.get('estimated_hours') || ''),
+      actual_hours: String(formData.get('actual_hours') || ''),
+      billable_hours: String(formData.get('billable_hours') || ''),
+      internal_notes: String(formData.get('internal_notes') || '')
     };
 
     try {
@@ -548,6 +568,12 @@ function ScheduleView({
                       <span>{entry.time}</span>
                       <strong>{entry.title}</strong>
                       <p>{entry.body}</p>
+                      {entry.tone === 'confirmed' && (
+                        <em>
+                          {entry.jobStatus.replace('_', ' ')}
+                          {entry.estimatedHours ? ` · ${entry.estimatedHours}h est` : ''}
+                        </em>
+                      )}
                     </button>
                   ))}
                   {dayQueue.map((item) => (
@@ -580,6 +606,34 @@ function ScheduleView({
             <label>
               <span>Time</span>
               <input name="appointment_time" defaultValue={selectedEntry.time} required />
+            </label>
+            <label>
+              <span>Job status</span>
+              <select name="job_status" defaultValue={selectedEntry.jobStatus}>
+                <option value="scheduled">Scheduled</option>
+                <option value="checked_in">Checked in</option>
+                <option value="in_progress">In progress</option>
+                <option value="waiting_parts">Waiting for parts</option>
+                <option value="paused">Paused</option>
+                <option value="ready">Ready</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
+            <label>
+              <span>Estimated hours</span>
+              <input name="estimated_hours" type="number" min="0" step="0.25" defaultValue={selectedEntry.estimatedHours ?? ''} />
+            </label>
+            <label>
+              <span>Actual hours</span>
+              <input name="actual_hours" type="number" min="0" step="0.25" defaultValue={selectedEntry.actualHours ?? ''} />
+            </label>
+            <label>
+              <span>Billable hours</span>
+              <input name="billable_hours" type="number" min="0" step="0.25" defaultValue={selectedEntry.billableHours ?? ''} />
+            </label>
+            <label className="wide-field">
+              <span>Internal notes</span>
+              <textarea name="internal_notes" defaultValue={selectedEntry.internalNotes} placeholder="Diagnosis, parts delay, work done, next step..." />
             </label>
             <label className="notify-toggle">
               <input name="notify_customer" type="checkbox" defaultChecked />

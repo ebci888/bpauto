@@ -94,6 +94,12 @@ Current appointment actions:
 - Confirm a requested booking from the schedule.
 - Reschedule a confirmed appointment.
 - Optionally log/send customer notification for confirm/reschedule.
+- Track lightweight job details:
+  - job status
+  - estimated hours
+  - actual hours
+  - billable hours
+  - internal notes
 
 ### Booking Requests
 
@@ -174,7 +180,7 @@ These should be positioned as optional modules, not part of the basic booking MV
 
 Useful for multi-day auto repair work where a vehicle may stay in the shop.
 
-Suggested fields:
+Built lightweight fields:
 
 - job status
   - scheduled
@@ -189,9 +195,14 @@ Suggested fields:
 - estimated hours
 - actual hours
 - billable hours
-- technician/mechanic assigned
 - internal notes
+
+Future additions:
+
+- technician/mechanic assigned
 - customer-facing notes
+- parts status
+- estimated completion date
 
 ### Time Tracking
 
@@ -321,15 +332,15 @@ These sources support the product direction, but the MVP should remain manual-en
 - Added drag-to-reschedule interaction.
 - Added appointment reschedule API.
 - Added optional notification intent for schedule changes.
+- Added lightweight job detail fields on appointments.
 
 ## Recommended Next Step
 
-Add lightweight job tracking fields:
+Add a simple customer-facing status action set for jobs:
 
-- job status
-- estimated hours
-- actual hours
-- billable hours
-- internal notes
+- you are next
+- please check in
+- waiting for parts
+- vehicle ready
 
-This gives the demo enough depth for real auto repair work without overbuilding full repair orders, invoicing, or labour-guide integrations yet.
+For now these can log notification events without requiring Twilio to be fully configured.
