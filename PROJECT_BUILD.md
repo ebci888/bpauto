@@ -212,6 +212,23 @@ Future hardening:
 - Add a dashboard spam filter/release action for suspected bookings.
 - Add Netlify edge/function rate limits in production.
 
+## AI Voice Assistant Demo
+
+Built behavior:
+
+- Bottom-right public site assistant is now a real demo chat surface instead of alert placeholders.
+- Supports typed questions, quick prompts, browser microphone dictation where supported, and spoken assistant replies.
+- Assistant is shop-aware: services, hours, Surrey location, booking-request flow, and basic intake questions.
+- `/api/ai-assistant` uses Gemini first when `GEMINI_API_KEY` is configured, OpenAI second when `OPENAI_API_KEY` is configured, and local demo replies when no provider key is present.
+- Demo mode is intentionally safe: it does not confirm appointments, diagnose with certainty, or quote exact repair prices.
+
+Demo provider env vars:
+
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+
 ## Demo Scope
 
 The demo should feel complete around this workflow:

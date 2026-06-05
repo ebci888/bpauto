@@ -71,6 +71,8 @@ export async function GET() {
   const turnstileSiteKeyConfigured = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
   const turnstileSecretConfigured = Boolean(process.env.TURNSTILE_SECRET_KEY);
   const turnstileRequired = process.env.TURNSTILE_REQUIRED === 'true';
+  const geminiConfigured = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+  const openAiConfigured = Boolean(process.env.OPENAI_API_KEY);
 
   return NextResponse.json({
     ok: readyForLogin,
@@ -100,6 +102,13 @@ export async function GET() {
       turnstileSecretConfigured,
       turnstileRequired,
       readyForRequiredTurnstile: !turnstileRequired || (turnstileSiteKeyConfigured && turnstileSecretConfigured)
+    },
+    aiAssistant: {
+      enabled: true,
+      geminiConfigured,
+      openAiConfigured,
+      fallbackModeAvailable: true,
+      activeProvider: geminiConfigured ? 'gemini' : openAiConfigured ? 'openai' : 'demo'
     },
     nextStep: readyForLogin
       ? 'Create or sign in with the owner account, then test /dashboard.'
