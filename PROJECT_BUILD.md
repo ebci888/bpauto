@@ -226,6 +226,7 @@ Built behavior:
 - When the draft has full name, phone, email, vehicle, service, date, and time, the assistant can submit the booking request directly through `/api/ai-assistant/book`.
 - Assistant-originated bookings still use the normal booking engine, spam checks, customer/vehicle creation, queue item creation, and notification event logging.
 - Submitted assistant conversations are linked back to the created booking request for follow-up review.
+- Live voice receptionist uses OpenAI Realtime over WebRTC through `/api/realtime/session`, with server-side OpenAI authentication and customer speech transcript sync into the booking draft.
 - Demo mode is intentionally safe: it does not confirm appointments, diagnose with certainty, or quote exact repair prices.
 
 Demo provider env vars:

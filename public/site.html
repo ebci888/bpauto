@@ -492,6 +492,7 @@
       background: #fff; color: var(--blue); border: 1px solid var(--blue-pale);
     }
     .assistant-mic.listening { background: var(--gold); color: #111; border-color: var(--gold); animation: pulse 1.2s infinite; }
+    .assistant-mic.connecting { cursor: wait; }
     .assistant-send { background: var(--blue); color: #fff; }
     .assistant-send:disabled { opacity: 0.55; cursor: wait; }
     .assistant-actions { display: flex; gap: 8px; margin-top: 10px; }
@@ -1208,7 +1209,7 @@
   <div class="voice-panel" id="voicePanel">
     <div class="voice-panel-header">
       <h4>BP Auto AI Assistant</h4>
-      <button class="voice-close" onclick="toggleVoice()">×</button>
+      <button class="voice-close" onclick="closeAssistantPanel()">×</button>
     </div>
     <div class="voice-ai-status">
       <div class="voice-ai-avatar">AI</div>
@@ -1241,7 +1242,7 @@
       <p class="assistant-status-line" id="assistantStatus">Voice uses your browser microphone when supported.</p>
     </div>
   </div>
-  <button class="voice-btn" onclick="toggleVoice()" aria-label="Open AI Assistant">
+  <button class="voice-btn" onclick="openAssistantPanel()" aria-label="Open AI Assistant">
     <div class="voice-notif">!</div>
     <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
@@ -1512,12 +1513,20 @@
   let voiceOpen = false;
   let assistantReady = false;
   let assistantBusy = false;
-  let recognition = null;
   let isListening = false;
+  let realtimePeer = null;
+  let realtimeChannel = null;
+  let realtimeStream = null;
+  let realtimeAudio = null;
+  let realtimeConnecting = false;
+  let realtimeConnected = false;
   const assistantMessages = [];
+  const syncedVoiceItems = new Set();
+  const displayedRealtimeReplies = new Set();
   let assistantConversationId = null;
   let assistantBookingDraft = {};
   let assistantBookingSubmitted = false;
+  let assistantLastFormSyncKey = '';
   const assistantPanel = document.getElementById('voicePanel');
   const assistantMessageList = document.getElementById('assistantMessages');
   const assistantForm = document.getElementById('assistantForm');
@@ -1600,6 +1609,7 @@
       assistantDraftList.appendChild(item);
     }
     if (assistantSubmitBooking) assistantSubmitBooking.disabled = assistantBookingSubmitted || bookingMissing.length > 0;
+    syncAssistantDraftToForm();
   }
 
   function assistantBookingMissingFields() {
@@ -1683,14 +1693,93 @@
     }
   }
 
-  async function applyAssistantDraft() {
+  function bookingFormSyncKey() {
+    const draft = assistantBookingDraft || {};
+    return [
+      draft.first_name,
+      draft.last_name,
+      draft.phone,
+      draft.email,
+      draft.vehicle,
+      draft.service,
+      draft.notes,
+      draft.preferred_date,
+      draft.preferred_time
+    ]
+      .map((value) => String(value || '').trim())
+      .join('|');
+  }
+
+  function syncAssistantDraftToForm() {
+    const key = bookingFormSyncKey();
+    if (!key || key === assistantLastFormSyncKey) return;
+    assistantLastFormSyncKey = key;
+    hydrateBookingFormFromDraft({ announce: false, closePanel: false, force: false, scroll: false }).catch(() => {});
+  }
+
+  function applyServiceDraft(form, service) {
+    const serviceSelect = form.querySelector('[name="service"]');
+    if (!service || !serviceSelect) return;
+    const serviceText = String(service).toLowerCase();
+    const aliases = [
+      ['brake', 'Brake Service'],
+      ['oil', 'Oil Change & Fluid Service'],
+      ['fluid', 'Oil Change & Fluid Service'],
+      ['check engine', 'Engine Diagnostics / Check Engine'],
+      ['diagnostic', 'Engine Diagnostics / Check Engine'],
+      ['no-start', 'Electrical Repair'],
+      ['not starting', 'Electrical Repair'],
+      ['electrical', 'Electrical Repair'],
+      ['suspension', 'Suspension & Steering'],
+      ['steering', 'Suspension & Steering'],
+      ['transmission', 'Transmission Service'],
+      ['diesel', 'Diesel Engine Repair']
+    ];
+    const alias = aliases.find(([needle]) => serviceText.includes(needle))?.[1];
+    const match = Array.from(serviceSelect.options).find((option) =>
+      [option.value, option.textContent].some((value) => String(value || '').toLowerCase() === String(alias || service).toLowerCase())
+    );
+    if (match) serviceSelect.value = match.value || match.textContent;
+    else serviceSelect.value = 'General Inspection';
+  }
+
+  function setCalendarDateFromDraft(date) {
+    const match = String(date || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match || !preferredDate) return false;
+    cYear = Number(match[1]);
+    cMonth = Number(match[2]) - 1;
+    selDay = Number(match[3]);
+    preferredDate.value = date;
+    renderCal();
+    return true;
+  }
+
+  function selectDraftTime(time) {
+    const normalized = String(time || '').trim().toLowerCase();
+    if (!normalized || !preferredTime) return false;
+    let selected = false;
+    document.querySelectorAll('.time-slot').forEach((button) => {
+      const buttonText = button.textContent.trim().toLowerCase();
+      if (buttonText === normalized) {
+        selectTime(button);
+        selected = true;
+      }
+    });
+    if (!selected) preferredTime.value = String(time).trim();
+    return true;
+  }
+
+  async function hydrateBookingFormFromDraft(options = {}) {
+    const { announce = false, closePanel = false, force = false, scroll = false } = options;
     const draft = assistantBookingDraft || {};
     const form = bookingForm;
     if (!form) return;
 
     const setValue = (name, value) => {
-      const field = form.elements[name];
-      if (field && value) field.value = value;
+      const field = form.querySelector(`[name="${name}"]`);
+      if (!field || !value) return;
+      if (!force && field.value && field.value.trim() && field.value.trim() !== String(value).trim()) return;
+      field.value = value;
     };
 
     setValue('first_name', draft.first_name);
@@ -1700,32 +1789,24 @@
     setValue('vehicle', draft.vehicle);
     setValue('notes', draft.notes);
 
-    if (draft.service && form.elements.service) {
-      const serviceSelect = form.elements.service;
-      const match = Array.from(serviceSelect.options).find((option) =>
-        option.textContent.toLowerCase().includes(String(draft.service).toLowerCase().split(' ')[0])
-      );
-      if (match) serviceSelect.value = match.value || match.textContent;
-      else serviceSelect.value = 'General Inspection';
-    }
+    applyServiceDraft(form, draft.service);
 
     if (draft.preferred_date) {
-      preferredDate.value = draft.preferred_date;
+      setCalendarDateFromDraft(draft.preferred_date);
       await loadAvailableTimes(draft.preferred_date);
     }
-    if (draft.preferred_time) {
-      preferredTime.value = draft.preferred_time;
-      document.querySelectorAll('.time-slot').forEach((button) => {
-        if (button.textContent.trim().toLowerCase() === String(draft.preferred_time).toLowerCase()) {
-          selectTime(button);
-        }
-      });
-    }
+    if (draft.preferred_time) selectDraftTime(draft.preferred_time);
 
-    toggleVoice();
-    document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    bookingStatus.textContent = 'I filled the booking form from the chat. Please review it and choose any missing date or time.';
-    bookingStatus.style.color = '#166534';
+    if (closePanel) closeAssistantPanel('Booking form filled from the assistant.');
+    if (scroll) document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (announce) {
+      bookingStatus.textContent = 'I filled the booking form from the chat. Please review it and choose any missing date or time.';
+      bookingStatus.style.color = '#166534';
+    }
+  }
+
+  async function applyAssistantDraft() {
+    await hydrateBookingFormFromDraft({ announce: true, closePanel: true, force: true, scroll: true });
   }
 
   function preferredAssistantVoice() {
@@ -1794,115 +1875,259 @@
     }
   }
 
+  async function syncVoiceTranscript(transcript, itemId = '') {
+    const cleanTranscript = String(transcript || '').trim();
+    if (!cleanTranscript) return;
+    const syncKey = itemId || cleanTranscript;
+    if (syncedVoiceItems.has(syncKey)) return;
+    syncedVoiceItems.add(syncKey);
+    addAssistantMessage('user', cleanTranscript);
+
+    try {
+      const response = await fetch('/api/ai-assistant', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: cleanTranscript,
+          messages: assistantMessages.slice(0, -1),
+          conversationId: assistantConversationId,
+          bookingDraft: assistantBookingDraft
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not update booking draft.');
+      assistantConversationId = result.conversationId || assistantConversationId;
+      renderAssistantDraft(result.booking_draft, result.missing_fields);
+      assistantStatus.textContent = result.should_show_booking_form
+        ? 'Voice heard. Booking draft updated.'
+        : 'Voice heard. Keep talking or type details below.';
+    } catch {
+      assistantStatus.textContent = 'Voice heard, but the booking draft could not update yet.';
+    }
+  }
+
+  function addRealtimeAssistantReply(text, eventId = '') {
+    const cleanText = String(text || '').trim();
+    if (!cleanText) return;
+    const key = eventId || cleanText;
+    if (displayedRealtimeReplies.has(key)) return;
+    displayedRealtimeReplies.add(key);
+    addAssistantMessage('assistant', cleanText);
+  }
+
+  function handleRealtimeEvent(event) {
+    if (!event || !event.type) return;
+
+    if (event.type === 'input_audio_buffer.speech_started') {
+      assistantStatus.textContent = 'Listening...';
+    } else if (event.type === 'input_audio_buffer.speech_stopped') {
+      assistantStatus.textContent = 'Thinking...';
+    } else if (event.type === 'conversation.item.input_audio_transcription.completed') {
+      syncVoiceTranscript(event.transcript, event.item_id);
+    } else if (event.type === 'response.output_audio_transcript.done' && event.transcript) {
+      addRealtimeAssistantReply(event.transcript, event.item_id);
+      assistantStatus.textContent = 'Ava replied. Keep talking or tap the mic to end.';
+    } else if (event.type === 'response.content_part.done' && (event.part?.transcript || event.part?.text)) {
+      addRealtimeAssistantReply(event.part.transcript || event.part.text, event.item_id);
+      assistantStatus.textContent = 'Ava replied. Keep talking or tap the mic to end.';
+    } else if ((event.type === 'response.text.done' || event.type === 'response.output_text.done') && event.text) {
+      addRealtimeAssistantReply(event.text, event.item_id);
+      assistantStatus.textContent = 'Ava replied. Keep talking or tap the mic to end.';
+    } else if (event.type === 'error') {
+      assistantStatus.textContent = event.error?.message || 'Voice session error. You can still type below.';
+    }
+  }
+
   function ensureAssistantReady() {
     if (assistantReady) return;
     assistantReady = true;
     addAssistantMessage('assistant', 'Hi, I can help with BP Auto Repair services, hours, location, and booking intake. You can type or tap the mic.');
   }
 
-  function toggleVoice() {
-    voiceOpen = !voiceOpen;
+  function openAssistantPanel(focusInput = true) {
     if (voiceOpen) {
-      assistantPanel.style.display = 'block';
-      ensureAssistantReady();
-      requestAnimationFrame(() => assistantPanel.classList.add('open'));
-      document.querySelector('.voice-notif').style.display = 'none';
-      setTimeout(() => assistantInput?.focus(), 180);
-    } else {
-      assistantPanel.classList.remove('open');
-      setTimeout(() => assistantPanel.style.display = 'none', 260);
+      if (focusInput) assistantInput?.focus();
+      return;
     }
+    voiceOpen = true;
+    assistantPanel.style.display = 'flex';
+    ensureAssistantReady();
+    requestAnimationFrame(() => assistantPanel.classList.add('open'));
+    document.querySelector('.voice-notif').style.display = 'none';
+    if (focusInput) setTimeout(() => assistantInput?.focus(), 180);
   }
 
-  async function checkMicrophoneAccess() {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      return { ok: false, message: 'This browser cannot directly test the microphone. You can still type below.' };
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((track) => track.stop());
-      return { ok: true, message: '' };
-    } catch (error) {
-      const name = error?.name || '';
-      if (name === 'NotAllowedError' || name === 'SecurityError') {
-        return { ok: false, message: 'Microphone permission is blocked. Allow microphone access in the browser and try again.' };
-      }
-      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
-        return { ok: false, message: 'No microphone was found. Check the input device in your computer sound settings.' };
-      }
-      if (name === 'NotReadableError' || name === 'TrackStartError') {
-        return { ok: false, message: 'The microphone is busy or unavailable. Close other apps using it and try again.' };
-      }
-      return { ok: false, message: 'The microphone could not start. You can still type your question.' };
-    }
+  function closeAssistantPanel(message = 'Voice chat closed.') {
+    if (!voiceOpen) return;
+    voiceOpen = false;
+    stopRealtimeVoice(message);
+    assistantPanel.classList.remove('open');
+    setTimeout(() => {
+      if (!voiceOpen) assistantPanel.style.display = 'none';
+    }, 260);
   }
 
-  function speechErrorMessage(errorName) {
-    return {
-      'not-allowed': 'Speech recognition is blocked. Allow microphone access in the browser and try again.',
-      'audio-capture': 'No microphone input was detected. Check your selected input device.',
-      'no-speech': 'I did not hear speech clearly. Try again a little closer to the microphone.',
-      network: 'Speech recognition needs a network connection in this browser. You can still type below.',
-      aborted: 'Voice capture stopped.',
-      'service-not-allowed': 'Speech recognition is not allowed in this browser. You can still type below.'
-    }[errorName] || 'Voice capture stopped. You can still type your question.';
+  function toggleVoice() {
+    if (voiceOpen) closeAssistantPanel();
+    else openAssistantPanel();
+  }
+
+  function microphoneErrorMessage(error) {
+    const name = error?.name || '';
+    const message = String(error?.message || '').toLowerCase();
+    if (name === 'NotAllowedError' || name === 'SecurityError' || message.includes('permission')) {
+      return 'Microphone permission is blocked. Allow microphone access for this site and tap the mic again.';
+    }
+    if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+      return 'No microphone was found. Check your selected input device, then tap the mic again.';
+    }
+    if (name === 'NotReadableError' || name === 'TrackStartError') {
+      return 'The microphone is busy or unavailable. Close other apps using it, then tap the mic again.';
+    }
+    return error instanceof Error ? error.message : 'Live voice could not start. You can still type below.';
+  }
+
+  function updateAssistantMicState() {
+    if (!assistantMic) return;
+    const active = realtimeConnecting || realtimeConnected;
+    assistantMic.classList.toggle('listening', active);
+    assistantMic.classList.toggle('connecting', realtimeConnecting);
+    assistantMic.textContent = realtimeConnecting ? '...' : realtimeConnected ? '■' : '🎙';
+    assistantMic.setAttribute('aria-label', active ? 'Stop voice chat' : 'Start voice chat');
+    assistantMic.title = active ? 'Stop voice chat' : 'Start voice chat';
+  }
+
+  function stopRealtimeVoice(message = 'Voice chat ended. You can type below or tap the mic to start again.') {
+    realtimeConnected = false;
+    realtimeConnecting = false;
+    isListening = false;
+
+    if (realtimeChannel) {
+      try {
+        realtimeChannel.close();
+      } catch {}
+      realtimeChannel = null;
+    }
+    if (realtimePeer) {
+      const peer = realtimePeer;
+      realtimePeer = null;
+      try {
+        peer.onconnectionstatechange = null;
+        peer.ontrack = null;
+        peer.close();
+      } catch {}
+    }
+    if (realtimeStream) {
+      realtimeStream.getTracks().forEach((track) => track.stop());
+      realtimeStream = null;
+    }
+    if (realtimeAudio) {
+      realtimeAudio.srcObject = null;
+    }
+    assistantProvider.textContent = 'Ask by voice or text';
+    updateAssistantMicState();
+    if (message) assistantStatus.textContent = message;
   }
 
   async function startVoiceChat() {
-    if (!voiceOpen) toggleVoice();
+    openAssistantPanel(false);
     ensureAssistantReady();
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      assistantStatus.textContent = 'Voice capture is not supported in this browser. You can still type below.';
+
+    if (realtimeConnected || realtimeConnecting) {
+      stopRealtimeVoice();
+      return;
+    }
+
+    if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) {
+      assistantStatus.textContent = 'Live voice needs a browser with microphone and WebRTC support. You can still type below.';
       assistantInput?.focus();
       return;
     }
-    const mic = await checkMicrophoneAccess();
-    if (!mic.ok) {
-      assistantStatus.textContent = mic.message;
-      assistantInput?.focus();
-      return;
-    }
-    if (!recognition) {
-      recognition = new SpeechRecognition();
-      recognition.lang = 'en-CA';
-      recognition.interimResults = false;
-      recognition.continuous = false;
-      recognition.onresult = (event) => {
-        const transcript = event.results?.[0]?.[0]?.transcript || '';
-        isListening = false;
-        assistantMic.classList.remove('listening');
-        assistantStatus.textContent = transcript ? `Heard: ${transcript}` : 'Could not hear that clearly.';
-        if (transcript) sendAssistantMessage(transcript, true);
-      };
-      recognition.onerror = (event) => {
-        isListening = false;
-        assistantMic.classList.remove('listening');
-        assistantStatus.textContent = speechErrorMessage(event.error);
-      };
-      recognition.onend = () => {
-        isListening = false;
-        assistantMic.classList.remove('listening');
-      };
-    }
-    if (isListening) {
-      recognition.stop();
-      return;
-    }
+
+    realtimeConnecting = true;
     isListening = true;
-    assistantMic.classList.add('listening');
-    assistantStatus.textContent = 'Listening... ask about booking, service, or a vehicle symptom.';
+    updateAssistantMicState();
+    assistantProvider.textContent = 'Connecting live voice...';
+    assistantStatus.textContent = 'Starting live voice receptionist...';
+
     try {
-      recognition.start();
-    } catch {
-      isListening = false;
-      assistantMic.classList.remove('listening');
-      assistantStatus.textContent = 'Voice capture is already starting. Wait a second and try again.';
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      realtimeStream = stream;
+
+      const peer = new RTCPeerConnection();
+      realtimePeer = peer;
+
+      if (!realtimeAudio) {
+        realtimeAudio = document.createElement('audio');
+        realtimeAudio.autoplay = true;
+        realtimeAudio.playsInline = true;
+        document.body.appendChild(realtimeAudio);
+      }
+
+      peer.ontrack = (event) => {
+        realtimeAudio.srcObject = event.streams[0];
+      };
+      peer.onconnectionstatechange = () => {
+        if (['failed', 'disconnected', 'closed'].includes(peer.connectionState)) {
+          stopRealtimeVoice('Live voice disconnected. You can tap the mic to start again.');
+        }
+      };
+
+      stream.getAudioTracks().forEach((track) => peer.addTrack(track, stream));
+
+      const channel = peer.createDataChannel('oai-events');
+      realtimeChannel = channel;
+      channel.addEventListener('open', () => {
+        realtimeConnecting = false;
+        realtimeConnected = true;
+        updateAssistantMicState();
+        assistantProvider.textContent = 'OpenAI realtime voice';
+        assistantStatus.textContent = 'Live voice connected. Start talking naturally.';
+        addAssistantMessage('assistant', 'Live voice is connected. Tell me what is going on with the vehicle.');
+        channel.send(
+          JSON.stringify({
+            type: 'response.create',
+            response: {
+              instructions:
+                'Greet the customer as Ava from BP Auto Repair in one short sentence, then ask what vehicle or issue they need help with.'
+            }
+          })
+        );
+      });
+      channel.addEventListener('message', (messageEvent) => {
+        try {
+          handleRealtimeEvent(JSON.parse(messageEvent.data));
+        } catch {}
+      });
+
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+
+      const response = await fetch('/api/realtime/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/sdp' },
+        body: offer.sdp
+      });
+      const answerSdp = await response.text();
+      if (!response.ok) throw new Error(answerSdp || 'Could not start live voice.');
+
+      await peer.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+    } catch (error) {
+      stopRealtimeVoice('');
+      assistantProvider.textContent = 'Ask by voice or text';
+      updateAssistantMicState();
+      assistantStatus.textContent = microphoneErrorMessage(error);
     }
   }
 
   function openTextChat() {
-    if (!voiceOpen) toggleVoice();
+    openAssistantPanel();
     ensureAssistantReady();
     assistantInput?.focus();
   }
