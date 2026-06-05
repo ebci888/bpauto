@@ -67,8 +67,8 @@ export async function GET() {
     }
   }
 
-  const readyForLogin =
-    supabasePublicConfigured && supabaseAdminConfigured && migrationApplied && Boolean(process.env.OWNER_EMAIL) && ownerProfileExists;
+  const ownerEmailConfigured = Boolean(process.env.OWNER_EMAIL);
+  const readyForLogin = supabasePublicConfigured && supabaseAdminConfigured && migrationApplied && ownerEmailConfigured && ownerProfileExists;
   const readyForMessaging = notificationSetup.brevo.ready || notificationSetup.twilio.ready;
   const turnstileSiteKeyConfigured = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
   const turnstileSecretConfigured = Boolean(process.env.TURNSTILE_SECRET_KEY);
@@ -88,7 +88,7 @@ export async function GET() {
       error: databaseError || null
     },
     auth: {
-      ownerEmailConfigured: Boolean(process.env.OWNER_EMAIL),
+      ownerEmailConfigured,
       ownerProfileExists,
       ownerProfileRole,
       readyForLogin
@@ -115,10 +115,14 @@ export async function GET() {
     },
     nextStep: readyForLogin
       ? 'Create or sign in with the owner account, then test /dashboard.'
-      : missingTables.length
-        ? `Apply the Supabase migration. Missing tables: ${missingTables.join(', ')}.`
-        : !ownerProfileExists
-          ? 'Create the Supabase Auth owner user using OWNER_EMAIL.'
-        : 'Add Supabase env vars, apply the migration, and set OWNER_EMAIL.'
+      : !supabasePublicConfigured || !supabaseAdminConfigured
+        ? 'Add NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY in the deployment environment, then redeploy.'
+        : !ownerEmailConfigured
+          ? 'Add OWNER_EMAIL in the deployment environment, then redeploy.'
+          : missingTables.length
+            ? `Apply the Supabase migration. Missing tables: ${missingTables.join(', ')}.`
+            : !ownerProfileExists
+              ? 'Sign in once with the OWNER_EMAIL account so the owner profile can be created.'
+              : 'Add Supabase env vars, apply the migration, and set OWNER_EMAIL.'
   });
 }

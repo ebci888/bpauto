@@ -158,6 +158,16 @@ a {
   font-weight: 700;
 }
 
+.login-form .login-warning {
+  padding: 10px 12px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  color: #9a3412;
+  background: #fff7ed;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .dashboard-page {
   min-height: 100vh;
   padding: 24px clamp(14px, 4vw, 44px) 48px;

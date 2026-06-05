@@ -1,13 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 export function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState('');
+  const [setupWarning, setSetupWarning] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSetupStatus() {
+      try {
+        const response = await fetch('/api/setup/status');
+        const result = await response.json();
+        if (!cancelled && !result.auth?.readyForLogin && result.nextStep) {
+          setSetupWarning(result.nextStep);
+        }
+      } catch {
+        if (!cancelled) setSetupWarning('');
+      }
+    }
+
+    loadSetupStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -16,7 +39,7 @@ export function LoginForm() {
     const supabase = createSupabaseBrowserClient();
     if (!supabase) {
       setLoading(false);
-      setStatus('Supabase is not configured yet. Add the public Supabase URL and anon key to enable owner login.');
+      setStatus('Production is missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Add them in Netlify env vars, then redeploy.');
       return;
     }
 
@@ -55,6 +78,7 @@ export function LoginForm() {
       <button type="submit" disabled={loading}>
         {loading ? 'Signing in...' : 'Sign In'}
       </button>
+      {setupWarning ? <p className="login-warning">{setupWarning}</p> : null}
       <p role="status">{status}</p>
     </form>
   );
