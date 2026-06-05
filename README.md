@@ -44,6 +44,7 @@ Open:
 
 - Public site: `http://localhost:3000`
 - Dashboard login: `http://localhost:3000/dashboard/login`
+- Setup status: `http://localhost:3000/api/setup/status`
 
 ## Database
 
@@ -52,6 +53,14 @@ Apply the Supabase migration:
 ```bash
 supabase/migrations/001_bp_auto_os.sql
 ```
+
+After adding Supabase environment variables and applying the migration, check:
+
+```bash
+curl http://localhost:3000/api/setup/status
+```
+
+The response should show `readyForLogin: true`.
 
 It creates:
 
