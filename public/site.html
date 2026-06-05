@@ -1734,6 +1734,9 @@
   let assistantConversationId = null;
   let assistantBookingDraft = {};
   let assistantBookingSubmitted = false;
+  let assistantVoiceAwaitingSendConsent = false;
+  let assistantVoiceSendConsent = false;
+  let assistantVoiceAutoSubmitting = false;
   let assistantLastFormSyncKey = '';
   const assistantPanel = document.getElementById('voicePanel');
   const assistantMessageList = document.getElementById('assistantMessages');
@@ -1867,23 +1870,62 @@
     };
   }
 
-  async function submitAssistantBooking() {
+  function assistantPromptAsksToSend(text) {
+    return /\b(should i|do you want me to|would you like me to|can i)\b[\s\S]{0,80}\b(send|submit|create)\b[\s\S]{0,60}\b(request|booking)\b/i.test(String(text || ''));
+  }
+
+  function voiceTranscriptGivesSendConsent(text) {
+    const normalized = String(text || '').toLowerCase();
+    if (!normalized) return false;
+    const strongConsent = /\b(send it|submit it|book it|go ahead|yes send|yeah send|yep send|please send|send the request|submit the request|create the request|send that|that works send|sounds good send)\b/.test(normalized);
+    const simpleConsent = /\b(yes|yeah|yep|correct|that's correct|that is correct|sure|sounds good|that works|okay|ok)\b/.test(normalized);
+    return strongConsent || (assistantVoiceAwaitingSendConsent && simpleConsent);
+  }
+
+  function assistantDraftHasAnyValue() {
+    return Object.values(assistantBookingDraft || {}).some((value) => String(value || '').trim());
+  }
+
+  function shouldAutoSubmitVoiceBooking(transcript) {
+    if (assistantBookingSubmitted || assistantVoiceAutoSubmitting) return false;
+    if (assistantBookingMissingFields().length) return false;
+    return voiceTranscriptGivesSendConsent(transcript);
+  }
+
+  async function autoSubmitVoiceBooking() {
+    if (assistantVoiceAutoSubmitting || assistantBookingSubmitted) return false;
+    assistantVoiceAutoSubmitting = true;
+    assistantStatus.textContent = 'Sending your voice booking request now...';
+    try {
+      return await submitAssistantBooking({ source: 'voice' });
+    } finally {
+      assistantVoiceAutoSubmitting = false;
+    }
+  }
+
+  async function submitAssistantBooking(options = {}) {
+    if (assistantBookingSubmitted) {
+      assistantStatus.textContent = 'This booking request was already sent.';
+      return true;
+    }
+
+    const isVoiceAutoSubmit = options.source === 'voice';
     const missing = assistantBookingMissingFields();
     if (missing.length) {
       assistantStatus.textContent = `Still needed before sending: ${missing.join(', ')}.`;
       renderAssistantDraft(assistantBookingDraft, missing);
       assistantInput?.focus();
-      return;
+      return false;
     }
 
     if (turnstileRequired && turnstileResponse && !turnstileResponse.value) {
       assistantStatus.textContent = 'Please complete the security check in the booking form, then tap Send Request again.';
       document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
+      return false;
     }
 
     if (assistantSubmitBooking) assistantSubmitBooking.disabled = true;
-    assistantStatus.textContent = 'Sending booking request to the shop...';
+    assistantStatus.textContent = isVoiceAutoSubmit ? 'Sending your voice booking request now...' : 'Sending booking request to the shop...';
 
     try {
       const payload = assistantBookingPayload();
@@ -1900,17 +1942,22 @@
       if (!response.ok) throw new Error(result.error || 'Could not send booking request.');
 
       assistantBookingSubmitted = true;
+      assistantVoiceAwaitingSendConsent = false;
       addAssistantMessage(
         'assistant',
-        `Your request has been sent to BP Auto Repair. Reference ${result.booking.reference}. The shop will review it and confirm or adjust the time.`
+        isVoiceAutoSubmit
+          ? `All set. Your request has been sent to BP Auto Repair. Reference ${result.booking.reference}. You should receive a text confirmation shortly. The shop will review it and confirm or adjust the time.`
+          : `Your request has been sent to BP Auto Repair. Reference ${result.booking.reference}. The shop will review it and confirm or adjust the time.`
       );
       assistantStatus.textContent = `Request sent. Reference ${result.booking.reference}.`;
       bookingStatus.textContent = `Thanks ${payload.first_name}. We received your request for ${payload.preferred_date} at ${payload.preferred_time}. Request #${result.booking.reference}.`;
       bookingStatus.style.color = '#166534';
       resetTurnstile();
+      return true;
     } catch (error) {
       assistantStatus.textContent = error instanceof Error ? error.message : 'Could not send booking request. Please call the shop.';
       if (assistantSubmitBooking) assistantSubmitBooking.disabled = false;
+      return false;
     }
   }
 
@@ -2120,8 +2167,19 @@
       if (!response.ok) throw new Error(result.error || 'Could not update booking draft.');
       assistantConversationId = result.conversationId || assistantConversationId;
       renderAssistantDraft(result.booking_draft, result.missing_fields);
+      if (voiceTranscriptGivesSendConsent(cleanTranscript)) {
+        assistantVoiceSendConsent = true;
+      }
+      if (shouldAutoSubmitVoiceBooking(cleanTranscript)) {
+        await autoSubmitVoiceBooking();
+        return;
+      }
+
+      const missing = assistantBookingMissingFields();
       assistantStatus.textContent = result.should_show_booking_form
-        ? 'Voice heard. Booking draft updated.'
+        ? missing.length
+          ? 'Voice heard. Booking draft updated.'
+          : 'Voice heard. I have enough details. Say "yes, send it" or tap Send Request.'
         : 'Voice heard. Keep talking or type details below.';
     } catch {
       assistantStatus.textContent = 'Voice heard, but the booking draft could not update yet.';
@@ -2134,6 +2192,9 @@
     const key = eventId || cleanText;
     if (displayedRealtimeReplies.has(key)) return;
     displayedRealtimeReplies.add(key);
+    if (assistantPromptAsksToSend(cleanText)) {
+      assistantVoiceAwaitingSendConsent = true;
+    }
     addAssistantMessage('assistant', cleanText);
   }
 
@@ -2243,8 +2304,7 @@
       return;
     }
 
-    const hasDraft = Object.values(assistantBookingDraft || {}).some((value) => String(value || '').trim());
-    if (!hasDraft) {
+    if (!assistantDraftHasAnyValue()) {
       assistantStatus.textContent = 'Voice ended. I did not catch enough booking details yet. Continue by text or use Book online.';
       return;
     }
@@ -2257,7 +2317,13 @@
       return;
     }
 
-    assistantStatus.textContent = 'Voice ended. Review the checklist, then tap Send Request to create the booking.';
+    if (assistantVoiceSendConsent) {
+      autoSubmitVoiceBooking();
+      return;
+    }
+
+    assistantVoiceAwaitingSendConsent = true;
+    assistantStatus.textContent = 'Voice ended. I have the details. Tap Send Request to create the request.';
     assistantSubmitBooking?.focus();
   }
 
