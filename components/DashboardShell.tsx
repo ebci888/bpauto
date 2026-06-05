@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { BlockedTime, DashboardData, BookingRequest, QueueItem, ShopHour, SpecialHour } from '@/types/database';
+import type { AiAssistantConversation, BlockedTime, DashboardData, BookingRequest, QueueItem, ShopHour, SpecialHour } from '@/types/database';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 type Props = {
@@ -10,7 +10,7 @@ type Props = {
   staffRole: string;
 };
 
-type Tab = 'schedule' | 'availability' | 'queue' | 'bookings' | 'customers' | 'vehicles' | 'cleanup' | 'notifications' | 'demo';
+type Tab = 'schedule' | 'availability' | 'queue' | 'bookings' | 'ai' | 'customers' | 'vehicles' | 'cleanup' | 'notifications' | 'demo';
 type ScheduleMode = 'day' | 'week' | 'month';
 type DemoModuleKey = 'aiAssistant' | 'spamShield' | 'notifications' | 'advancedCalendar';
 type DemoControls = Record<DemoModuleKey, boolean>;
@@ -55,6 +55,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'availability', label: 'Availability' },
   { id: 'queue', label: 'Today Queue' },
   { id: 'bookings', label: 'Booking Requests' },
+  { id: 'ai', label: 'AI Chats' },
   { id: 'customers', label: 'Customers' },
   { id: 'vehicles', label: 'Vehicles' },
   { id: 'cleanup', label: 'End-of-Day' },
@@ -146,11 +147,13 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   const [notificationTestBusy, setNotificationTestBusy] = useState<NotificationTestChannel | null>(null);
   const [demoControls, setDemoControls] = useState<DemoControls>(defaultDemoControls);
   const [demoControlsLoaded, setDemoControlsLoaded] = useState(false);
+  const [selectedConversation, setSelectedConversation] = useState<AiAssistantConversation | null>(null);
 
   const todayQueue = useMemo(() => data.queueItems.filter((item) => item.queue_date === todayKey()), [data.queueItems]);
   const incomplete = useMemo(() => data.queueItems.filter((item) => item.is_incomplete), [data.queueItems]);
   const requestedBookings = useMemo(() => data.bookings.filter((booking) => booking.status === 'requested'), [data.bookings]);
   const suspectedBookings = useMemo(() => data.bookings.filter((booking) => booking.spam_status === 'suspected'), [data.bookings]);
+  const activeAiConversations = useMemo(() => data.aiConversations.filter((conversation) => conversation.status !== 'submitted'), [data.aiConversations]);
 
   useEffect(() => {
     if (tab !== 'notifications' || notificationSetup) return;
@@ -486,6 +489,7 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
         <Metric label="Booking requests" value={requestedBookings.length} />
         <Metric label="Today queue" value={todayQueue.length} />
         <Metric label="Incomplete" value={incomplete.length} />
+        <Metric label="AI chats" value={activeAiConversations.length} />
       </section>
 
       <nav className="dashboard-tabs" aria-label="Dashboard views">
@@ -682,6 +686,17 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
         </Panel>
       )}
 
+      {tab === 'ai' && (
+        <AiConversationsPanel
+          conversations={data.aiConversations}
+          messages={data.aiMessages}
+          bookings={data.bookings}
+          selectedConversation={selectedConversation}
+          onSelect={setSelectedConversation}
+          onClose={() => setSelectedConversation(null)}
+        />
+      )}
+
       {tab === 'customers' && (
         <Panel title="Customers" subtitle="Created automatically from bookings and quick captures.">
           <SimpleList
@@ -751,6 +766,147 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   );
 }
 
+function AiConversationsPanel({
+  conversations,
+  messages,
+  bookings,
+  selectedConversation,
+  onSelect,
+  onClose
+}: {
+  conversations: DashboardData['aiConversations'];
+  messages: DashboardData['aiMessages'];
+  bookings: DashboardData['bookings'];
+  selectedConversation: AiAssistantConversation | null;
+  onSelect: (conversation: AiAssistantConversation) => void;
+  onClose: () => void;
+}) {
+  const bookingMap = new Map(bookings.map((booking) => [booking.id, booking]));
+  const messagesByConversation = messages.reduce<Record<string, DashboardData['aiMessages']>>((grouped, message) => {
+    grouped[message.conversation_id] = grouped[message.conversation_id] || [];
+    grouped[message.conversation_id].push(message);
+    return grouped;
+  }, {});
+  const selectedMessages = selectedConversation ? messagesByConversation[selectedConversation.id] || [] : [];
+  const abandonedCount = conversations.filter((conversation) => conversation.status === 'active' || conversation.status === 'booking_ready').length;
+  const submittedCount = conversations.filter((conversation) => conversation.status === 'submitted').length;
+
+  return (
+    <Panel title="AI Conversations" subtitle="Review submitted assistant bookings and abandoned booking drafts from the public website.">
+      <div className="ai-inbox-summary">
+        <article>
+          <strong>{conversations.length}</strong>
+          <span>Total chats</span>
+        </article>
+        <article>
+          <strong>{submittedCount}</strong>
+          <span>Submitted</span>
+        </article>
+        <article>
+          <strong>{abandonedCount}</strong>
+          <span>Needs follow-up</span>
+        </article>
+      </div>
+
+      <div className="record-list">
+        {conversations.length ? (
+          conversations.map((conversation) => {
+            const draft = conversation.booking_draft || {};
+            const booking = conversation.booking_request_id ? bookingMap.get(conversation.booking_request_id) : null;
+            const previewMessages = messagesByConversation[conversation.id] || [];
+            const lastMessage = previewMessages[previewMessages.length - 1];
+            const customerName = [draft.first_name, draft.last_name].filter(Boolean).join(' ') || booking?.customer_name || 'Unknown customer';
+            const vehicle = draft.vehicle || booking?.vehicle_description || 'Vehicle not captured';
+            const service = draft.service || booking?.service_needed || 'Service not captured';
+
+            return (
+              <article className="record-card ai-card" key={conversation.id}>
+                <div className="record-top">
+                  <div>
+                    <h3>{customerName}</h3>
+                    <p>
+                      {service} · {vehicle}
+                    </p>
+                  </div>
+                  <div className="status-stack">
+                    <span className={`status ${conversation.status}`}>{conversation.status.replace('_', ' ')}</span>
+                    <span className="status provider">{conversation.provider}</span>
+                  </div>
+                </div>
+                <div className="meta-row">
+                  <span>{dateText(conversation.updated_at)}</span>
+                  <span>{draft.phone || booking?.phone || 'No phone'}</span>
+                  <span>{draft.email || booking?.email || 'No email'}</span>
+                  <span>{booking ? `Booking ${booking.reference}` : 'No booking submitted'}</span>
+                </div>
+                <div className="missing-row">
+                  {draft.preferred_date && <span>{draft.preferred_date}</span>}
+                  {draft.preferred_time && <span>{draft.preferred_time}</span>}
+                  {draft.urgency && <span>{draft.urgency}</span>}
+                  <span>{previewMessages.length} messages</span>
+                </div>
+                {lastMessage && <p className="ai-preview">{lastMessage.content}</p>}
+                <div className="record-actions">
+                  <button type="button" onClick={() => onSelect(conversation)}>
+                    View Transcript
+                  </button>
+                </div>
+              </article>
+            );
+          })
+        ) : (
+          <EmptyState text="No AI conversations yet." />
+        )}
+      </div>
+
+      {selectedConversation && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+          <section className="job-modal ai-transcript-modal" role="dialog" aria-modal="true" aria-labelledby="ai-transcript-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="job-modal-header">
+              <div>
+                <p>AI conversation</p>
+                <h3 id="ai-transcript-title">{selectedConversation.status.replace('_', ' ')}</h3>
+                <span>
+                  {selectedConversation.provider} · {dateText(selectedConversation.updated_at)}
+                </span>
+              </div>
+              <button type="button" aria-label="Close AI transcript" onClick={onClose}>
+                Close
+              </button>
+            </div>
+
+            <div className="ai-draft-grid">
+              {Object.entries(selectedConversation.booking_draft || {})
+                .filter(([, value]) => String(value || '').trim())
+                .map(([key, value]) => (
+                  <article key={key}>
+                    <span>{key.replaceAll('_', ' ')}</span>
+                    <strong>{String(value)}</strong>
+                  </article>
+                ))}
+            </div>
+
+            <div className="ai-transcript">
+              {selectedMessages.length ? (
+                selectedMessages.map((message) => (
+                  <article className={message.role === 'assistant' ? 'assistant' : 'user'} key={message.id}>
+                    <span>
+                      {message.role} · {dateText(message.created_at)}
+                    </span>
+                    <p>{message.content}</p>
+                  </article>
+                ))
+              ) : (
+                <EmptyState text="No transcript messages found." />
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: number }) {
   return (
     <article>
@@ -804,12 +960,12 @@ function DemoControlsPanel({
       proof: `${metrics.requested} requests, ${metrics.appointments} appointments ready`,
       tab: 'schedule'
     },
-    {
-      key: 'aiAssistant',
-      title: 'AI Assistant',
-      summary: 'Public site assistant supports typed chat, browser voice input, and spoken replies.',
-      proof: 'Gemini/OpenAI-ready with local fallback',
-      tab: 'schedule'
+            {
+              key: 'aiAssistant',
+              title: 'AI Assistant',
+      summary: 'Public site assistant supports typed chat, browser voice input, spoken replies, and booking requests.',
+      proof: 'Chat transcripts and booking drafts visible',
+      tab: 'ai'
     },
     {
       key: 'spamShield',

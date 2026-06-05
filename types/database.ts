@@ -6,6 +6,7 @@ export type Priority = 'urgent' | 'high' | '';
 export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped';
 export type JobStatus = 'scheduled' | 'checked_in' | 'in_progress' | 'waiting_parts' | 'paused' | 'ready' | 'completed';
 export type SpamStatus = 'clean' | 'suspected' | 'blocked';
+export type AiAssistantConversationStatus = 'active' | 'booking_ready' | 'submitted' | 'closed';
 
 export type DashboardData = {
   bookings: BookingRequest[];
@@ -14,6 +15,8 @@ export type DashboardData = {
   queueItems: QueueItem[];
   appointments: Appointment[];
   notifications: NotificationEvent[];
+  aiConversations: AiAssistantConversation[];
+  aiMessages: AiAssistantMessage[];
   shopHours: ShopHour[];
   specialHours: SpecialHour[];
   blockedTimes: BlockedTime[];
@@ -121,6 +124,41 @@ export type NotificationEvent = {
   provider_message_id: string | null;
   error: string | null;
   sent_at: string | null;
+  created_at: string;
+};
+
+export type AiBookingDraft = {
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  email?: string;
+  vehicle?: string;
+  service?: string;
+  notes?: string;
+  preferred_date?: string;
+  preferred_time?: string;
+  urgency?: string;
+  safety_note?: string;
+};
+
+export type AiAssistantConversation = {
+  id: string;
+  source: string;
+  status: AiAssistantConversationStatus;
+  provider: string;
+  latest_summary: string | null;
+  booking_draft: AiBookingDraft;
+  booking_request_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AiAssistantMessage = {
+  id: string;
+  conversation_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  provider: string | null;
   created_at: string;
 };
 

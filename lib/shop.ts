@@ -767,19 +767,21 @@ export async function rescheduleAppointment(id: string, raw: unknown) {
 
 export async function getDashboardData() {
   const admin = getSupabaseAdmin();
-  const [bookings, customers, vehicles, queueItems, appointments, notifications, shopHours, specialHours, blockedTimes] = await Promise.all([
+  const [bookings, customers, vehicles, queueItems, appointments, notifications, aiConversations, aiMessages, shopHours, specialHours, blockedTimes] = await Promise.all([
     admin.from('booking_requests').select('*').order('created_at', { ascending: false }).limit(100),
     admin.from('customers').select('*').order('updated_at', { ascending: false }).limit(100),
     admin.from('vehicles').select('*').order('updated_at', { ascending: false }).limit(100),
     admin.from('queue_items').select('*').order('created_at', { ascending: false }).limit(100),
     admin.from('appointments').select('*').order('created_at', { ascending: false }).limit(100),
     admin.from('notification_events').select('*').order('created_at', { ascending: false }).limit(100),
+    admin.from('ai_assistant_conversations').select('*').order('updated_at', { ascending: false }).limit(100),
+    admin.from('ai_assistant_messages').select('*').order('created_at', { ascending: true }).limit(500),
     admin.from('shop_hours').select('*').order('day_of_week', { ascending: true }),
     admin.from('special_hours').select('*').order('special_date', { ascending: true }).limit(100),
     admin.from('blocked_times').select('*').order('block_date', { ascending: true }).order('start_time', { ascending: true }).limit(100)
   ]);
 
-  for (const result of [bookings, customers, vehicles, queueItems, appointments, notifications, shopHours, specialHours, blockedTimes]) {
+  for (const result of [bookings, customers, vehicles, queueItems, appointments, notifications, aiConversations, aiMessages, shopHours, specialHours, blockedTimes]) {
     if (result.error) throw result.error;
   }
 
@@ -790,6 +792,8 @@ export async function getDashboardData() {
     queueItems: queueItems.data ?? [],
     appointments: appointments.data ?? [],
     notifications: notifications.data ?? [],
+    aiConversations: aiConversations.data ?? [],
+    aiMessages: aiMessages.data ?? [],
     shopHours: shopHours.data ?? [],
     specialHours: specialHours.data ?? [],
     blockedTimes: blockedTimes.data ?? []
