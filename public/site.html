@@ -411,20 +411,24 @@
       font-size: 10px; font-weight: 900; color: #111; font-family: 'Montserrat', sans-serif;
     }
     .voice-panel {
-      position: absolute; bottom: 76px; right: 0; width: 316px;
+      position: absolute; bottom: 76px; right: 0; width: 348px;
+      height: min(720px, calc(100vh - 116px));
       background: var(--white); border: 1px solid var(--border); border-radius: 20px;
       padding: 24px; box-shadow: var(--shadow-lg);
-      display: none; opacity: 0; transform: scale(0.9) translateY(10px);
+      overflow: hidden;
+      min-height: 0;
+      display: none; flex-direction: column; opacity: 0; transform: scale(0.9) translateY(10px);
       transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       transform-origin: bottom right;
     }
-    .voice-panel.open { display: block; opacity: 1; transform: scale(1) translateY(0); }
-    .voice-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .voice-panel.open { display: flex; opacity: 1; transform: scale(1) translateY(0); }
+    .voice-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-shrink: 0; }
     .voice-panel-header h4 { color: var(--text); font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 15px; }
     .voice-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; line-height: 1; }
     .voice-ai-status {
       background: var(--blue-light); border: 1px solid var(--blue-pale);
-      border-radius: 12px; padding: 14px; margin-bottom: 14px; display: flex; align-items: center; gap: 12px;
+      border-radius: 12px; padding: 12px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px;
+      flex-shrink: 0;
     }
     .voice-ai-avatar {
       width: 44px; height: 44px; border-radius: 50%; background: var(--blue);
@@ -444,8 +448,9 @@
     @keyframes waveAnim { 0%,100%{transform:scaleY(0.5);opacity:0.5} 50%{transform:scaleY(1);opacity:1} }
     .assistant-messages {
       display: flex; flex-direction: column; gap: 10px;
-      max-height: 270px; overflow-y: auto; padding: 4px 2px 10px;
+      min-height: 0; overflow-y: auto; padding: 4px 2px 12px;
       scroll-behavior: smooth;
+      flex: 1 1 0;
     }
     .assistant-message {
       max-width: 86%; border-radius: 14px; padding: 10px 12px;
@@ -457,18 +462,19 @@
     .assistant-message.user {
       align-self: flex-end; background: var(--blue); color: #fff;
     }
-    .assistant-quick {
-      display: flex; gap: 7px; flex-wrap: wrap; margin: 2px 0 10px;
+    .assistant-input-zone {
+      flex: 0 1 auto;
+      display: grid;
+      gap: 8px;
+      max-height: min(200px, 38vh);
+      overflow-y: auto;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
     }
-    .assistant-quick button,
     .assistant-action,
     .assistant-mic,
     .assistant-send {
       border: none; border-radius: 999px; cursor: pointer; font-family: 'Montserrat', sans-serif; font-weight: 800;
-    }
-    .assistant-quick button {
-      background: var(--blue-light); color: var(--blue-dark); border: 1px solid var(--blue-pale);
-      padding: 7px 10px; font-size: 11px;
     }
     .assistant-composer {
       display: grid; grid-template-columns: 38px 1fr 42px; gap: 8px; align-items: center;
@@ -496,30 +502,32 @@
     .assistant-action.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
     .assistant-draft {
       display: none;
-      margin: 2px 0 10px;
-      padding: 12px;
+      margin: 0;
+      padding: 7px 8px 3px;
       border: 1px solid var(--blue-pale);
-      border-radius: 14px;
+      border-radius: 12px;
       background: #f8fbff;
     }
     .assistant-draft.active { display: block; }
     .assistant-draft h5 {
-      margin: 0 0 7px;
+      margin: 0 0 5px;
       color: var(--text);
       font-family: 'Montserrat', sans-serif;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 850;
     }
     .assistant-draft ul {
       display: grid;
-      gap: 5px;
+      gap: 3px;
+      max-height: 62px;
+      overflow-y: auto;
       margin: 0;
       padding: 0;
       list-style: none;
     }
     .assistant-draft li {
       color: var(--muted);
-      font-size: 12px;
+      font-size: 11px;
       line-height: 1.35;
     }
     .assistant-draft strong { color: var(--text); }
@@ -527,17 +535,17 @@
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
-      margin-top: 10px;
+      margin-top: 6px;
     }
     .assistant-draft button {
       width: 100%;
-      min-height: 36px;
+      min-height: 30px;
       border: none;
       border-radius: 9px;
       color: #fff;
       background: var(--blue);
       font-family: 'Montserrat', sans-serif;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 850;
       cursor: pointer;
     }
@@ -549,9 +557,6 @@
     .assistant-draft button:disabled {
       cursor: not-allowed;
       opacity: 0.55;
-    }
-    @media (max-width: 420px) {
-      .assistant-draft-actions { grid-template-columns: 1fr; }
     }
     .assistant-status-line { min-height: 16px; margin-top: 8px; color: var(--muted); font-size: 11px; text-align: center; }
 
@@ -641,8 +646,8 @@
       /* Assistant */
       .voice-widget { right: 16px; bottom: 16px; left: 16px; display: flex; justify-content: flex-end; pointer-events: none; }
       .voice-widget > * { pointer-events: auto; }
-      .voice-panel { right: 0; bottom: 74px; width: min(100%, 380px); padding: 18px; }
-      .assistant-messages { max-height: 255px; }
+      .voice-panel { right: 0; bottom: 74px; width: min(100%, 390px); height: calc(100vh - 106px); padding: 18px; }
+      .assistant-messages { min-height: 90px; }
     }
 
     @media (max-width: 480px) {
@@ -1219,30 +1224,22 @@
       </div>
     </div>
     <div class="assistant-messages" id="assistantMessages" aria-live="polite"></div>
-    <div class="assistant-quick">
-      <button type="button" onclick="askAssistantQuick('I want to book an appointment through chat.')">Book by chat</button>
-      <button type="button" onclick="askAssistantQuick('I hear a brake noise. What should I do?')">Brake noise</button>
-      <button type="button" onclick="askAssistantQuick('Can I book an oil change?')">Book oil change</button>
-      <button type="button" onclick="askAssistantQuick('Where are you located?')">Location</button>
-    </div>
-    <div class="assistant-draft" id="assistantDraft">
-      <h5>Booking draft</h5>
-      <ul id="assistantDraftList"></ul>
-      <div class="assistant-draft-actions">
-        <button class="secondary" type="button" onclick="applyAssistantDraft()">Fill Form</button>
-        <button type="button" id="assistantSubmitBooking" onclick="submitAssistantBooking()">Send Request</button>
+    <div class="assistant-input-zone">
+      <form class="assistant-composer" id="assistantForm">
+        <button class="assistant-mic" type="button" id="assistantMic" aria-label="Start voice chat" onclick="startVoiceChat()">🎙</button>
+        <input id="assistantInput" type="text" autocomplete="off" placeholder="Ask about service, booking, or symptoms..." />
+        <button class="assistant-send" id="assistantSend" type="submit" aria-label="Send message">→</button>
+      </form>
+      <div class="assistant-draft" id="assistantDraft">
+        <h5>Booking draft</h5>
+        <ul id="assistantDraftList"></ul>
+        <div class="assistant-draft-actions">
+          <button class="secondary" type="button" onclick="applyAssistantDraft()">Fill Form</button>
+          <button type="button" id="assistantSubmitBooking" onclick="submitAssistantBooking()">Send Request</button>
+        </div>
       </div>
+      <p class="assistant-status-line" id="assistantStatus">Voice uses your browser microphone when supported.</p>
     </div>
-    <form class="assistant-composer" id="assistantForm">
-      <button class="assistant-mic" type="button" id="assistantMic" aria-label="Start voice chat" onclick="startVoiceChat()">🎙</button>
-      <input id="assistantInput" type="text" autocomplete="off" placeholder="Ask about service, booking, or symptoms..." />
-      <button class="assistant-send" id="assistantSend" type="submit" aria-label="Send message">→</button>
-    </form>
-    <div class="assistant-actions">
-      <a class="assistant-action primary" href="#booking" onclick="toggleVoice()">Book Online</a>
-      <a class="assistant-action" href="tel:+16045902788">Call Shop</a>
-    </div>
-    <p class="assistant-status-line" id="assistantStatus">Voice uses your browser microphone when supported.</p>
   </div>
   <button class="voice-btn" onclick="toggleVoice()" aria-label="Open AI Assistant">
     <div class="voice-notif">!</div>
@@ -1578,29 +1575,22 @@
 
   function renderAssistantDraft(draft = {}, missing = []) {
     assistantBookingDraft = { ...assistantBookingDraft, ...draft };
-    const visibleEntries = Object.entries(assistantBookingDraft).filter(([, value]) => String(value || '').trim());
+    const compactKeys = ['service', 'vehicle', 'preferred_date', 'preferred_time', 'first_name', 'last_name', 'phone', 'email', 'urgency'];
+    const visibleEntries = compactKeys
+      .map((key) => [key, assistantBookingDraft[key]])
+      .filter(([, value]) => String(value || '').trim());
     if (!assistantDraft || !assistantDraftList || !visibleEntries.length) return;
 
     const bookingMissing = assistantBookingMissingFields();
     assistantDraft.classList.add('active');
     assistantDraftList.innerHTML = '';
-    visibleEntries
-      .filter(([key]) => !['safety_note'].includes(key))
-      .slice(0, 9)
-      .forEach(([key, value]) => {
-        const item = document.createElement('li');
-        const label = document.createElement('strong');
-        label.textContent = `${fieldLabel(key)}:`;
-        item.append(label, ` ${String(value)}`);
-        assistantDraftList.appendChild(item);
-      });
-    if (assistantBookingDraft.safety_note) {
+    visibleEntries.forEach(([key, value]) => {
       const item = document.createElement('li');
       const label = document.createElement('strong');
-      label.textContent = 'Safety:';
-      item.append(label, ` ${assistantBookingDraft.safety_note}`);
+      label.textContent = `${fieldLabel(key)}:`;
+      item.append(label, ` ${String(value)}`);
       assistantDraftList.appendChild(item);
-    }
+    });
     const needed = bookingMissing.length ? bookingMissing : missing;
     if (needed?.length) {
       const item = document.createElement('li');
@@ -1915,11 +1905,6 @@
     if (!voiceOpen) toggleVoice();
     ensureAssistantReady();
     assistantInput?.focus();
-  }
-
-  function askAssistantQuick(message) {
-    if (!voiceOpen) toggleVoice();
-    sendAssistantMessage(message);
   }
 
   assistantForm?.addEventListener('submit', (event) => {
