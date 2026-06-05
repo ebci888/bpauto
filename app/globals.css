@@ -90,14 +90,16 @@ a {
 }
 
 .login-form label,
-.quick-capture-form label {
+.quick-capture-form label,
+.schedule-action-panel label {
   display: flex;
   flex-direction: column;
   gap: 7px;
 }
 
 .login-form span,
-.quick-capture-form span {
+.quick-capture-form span,
+.schedule-action-panel label span {
   color: var(--dashboard-muted);
   font-size: 12px;
   font-weight: 850;
@@ -109,7 +111,8 @@ a {
 .quick-capture-form input,
 .quick-capture-form select,
 .quick-capture-form textarea,
-.confirm-form input {
+.confirm-form input,
+.schedule-action-panel input {
   width: 100%;
   border: 1.5px solid var(--dashboard-line);
   border-radius: 8px;
@@ -129,6 +132,7 @@ a {
 .mode-toggle button,
 .quick-capture-heading button,
 .quick-capture-form button,
+.schedule-action-buttons button,
 .confirm-form button,
 .record-actions button,
 .dashboard-tabs button {
@@ -379,11 +383,25 @@ a {
 }
 
 .schedule-event {
+  width: 100%;
+  border: 0;
   border-left: 4px solid var(--dashboard-blue);
   border-radius: 8px;
   padding: 10px;
   background: #fff;
   box-shadow: 0 8px 18px rgba(17, 24, 39, 0.05);
+  color: var(--dashboard-ink);
+  text-align: left;
+  cursor: grab;
+}
+
+.schedule-event:active {
+  cursor: grabbing;
+}
+
+.schedule-event:focus-visible {
+  outline: 3px solid rgba(29, 78, 216, 0.25);
+  outline-offset: 2px;
 }
 
 .schedule-event.confirmed {
@@ -419,6 +437,93 @@ a {
   display: grid;
   min-height: 150px;
   place-items: center;
+}
+
+.schedule-action-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 520px);
+  gap: 16px;
+  padding: 18px;
+  border-top: 1px solid var(--dashboard-line);
+  background: #fff;
+}
+
+.schedule-action-panel > div > p {
+  margin: 0 0 5px;
+  color: var(--dashboard-blue);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.3px;
+  text-transform: uppercase;
+}
+
+.schedule-action-panel h3 {
+  font-size: 20px;
+}
+
+.schedule-action-panel > div > span {
+  display: block;
+  margin-top: 8px;
+  color: var(--dashboard-muted);
+  font-size: 14px;
+}
+
+.schedule-action-panel form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.schedule-action-panel input {
+  min-height: 44px;
+  padding: 0 12px;
+}
+
+.notify-toggle {
+  grid-column: 1 / -1;
+  flex-direction: row !important;
+  align-items: center;
+}
+
+.notify-toggle input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  padding: 0;
+}
+
+.notify-toggle span {
+  color: var(--dashboard-ink) !important;
+  font-size: 14px !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.schedule-action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.schedule-action-buttons button {
+  min-height: 42px;
+  padding: 0 14px;
+  color: #fff;
+  background: var(--dashboard-blue);
+}
+
+.schedule-action-buttons button[type="button"] {
+  color: var(--dashboard-ink);
+  background: #fff;
+  border: 1px solid var(--dashboard-line);
+}
+
+.schedule-action-panel form > p {
+  align-self: center;
+  min-height: 20px;
+  margin: 0;
+  color: var(--dashboard-red);
+  font-weight: 800;
 }
 
 .quick-capture-form {
@@ -637,9 +742,18 @@ a {
   }
 
   .schedule-header,
-  .quick-capture-heading {
+  .quick-capture-heading,
+  .schedule-action-panel {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .schedule-action-panel {
+    display: flex;
+  }
+
+  .schedule-action-panel form {
+    grid-template-columns: 1fr;
   }
 
   .schedule-controls {

@@ -30,7 +30,14 @@ export const quickCaptureSchema = z.object({
 
 export const confirmBookingSchema = z.object({
   appointment_date: z.string().trim().min(1),
-  appointment_time: z.string().trim().min(1)
+  appointment_time: z.string().trim().min(1),
+  notify_customer: z.coerce.boolean().optional().default(true)
+});
+
+export const rescheduleAppointmentSchema = z.object({
+  appointment_date: z.string().trim().min(1),
+  appointment_time: z.string().trim().min(1),
+  notify_customer: z.coerce.boolean().optional().default(true)
 });
 
 async function touchCustomer(input: {
@@ -369,27 +376,98 @@ export async function confirmBookingRequest(id: string, raw: unknown) {
     .eq('id', booking.id);
   if (updateBookingError) throw updateBookingError;
 
-  await Promise.all([
-    createNotification({
-      bookingRequestId: booking.id,
-      appointmentId: appointment.id,
-      channel: 'email',
-      eventType: 'customer_appointment_confirmed_email',
-      recipient: booking.email,
-      subject: `BP Auto Repair confirmed your appointment ${booking.reference}`,
-      body: `Hi ${booking.customer_name}, your ${booking.service_needed} appointment is confirmed for ${input.appointment_date} at ${input.appointment_time}.`
-    }),
-    createNotification({
-      bookingRequestId: booking.id,
-      appointmentId: appointment.id,
-      channel: 'sms',
-      eventType: 'customer_appointment_confirmed_sms',
-      recipient: booking.phone,
-      body: `BP Auto Repair confirmed your appointment for ${input.appointment_date} at ${input.appointment_time}.`
-    })
-  ]);
+  if (input.notify_customer) {
+    await Promise.all([
+      createNotification({
+        bookingRequestId: booking.id,
+        appointmentId: appointment.id,
+        channel: 'email',
+        eventType: 'customer_appointment_confirmed_email',
+        recipient: booking.email,
+        subject: `BP Auto Repair confirmed your appointment ${booking.reference}`,
+        body: `Hi ${booking.customer_name}, your ${booking.service_needed} appointment is confirmed for ${input.appointment_date} at ${input.appointment_time}.`
+      }),
+      createNotification({
+        bookingRequestId: booking.id,
+        appointmentId: appointment.id,
+        channel: 'sms',
+        eventType: 'customer_appointment_confirmed_sms',
+        recipient: booking.phone,
+        body: `BP Auto Repair confirmed your appointment for ${input.appointment_date} at ${input.appointment_time}.`
+      })
+    ]);
+  }
 
   return appointment;
+}
+
+export async function rescheduleAppointment(id: string, raw: unknown) {
+  const input = rescheduleAppointmentSchema.parse(raw);
+  const admin = getSupabaseAdmin();
+  const { data: appointment, error: appointmentError } = await admin.from('appointments').select('*').eq('id', id).single();
+  if (appointmentError) throw appointmentError;
+
+  const { data: existing } = await admin
+    .from('appointments')
+    .select('id')
+    .eq('appointment_date', input.appointment_date)
+    .eq('appointment_time', input.appointment_time)
+    .eq('status', 'confirmed')
+    .neq('id', id)
+    .maybeSingle();
+  if (existing) {
+    throw new Error('That appointment slot is already confirmed.');
+  }
+
+  const { data: updatedAppointment, error: updateAppointmentError } = await admin
+    .from('appointments')
+    .update({
+      appointment_date: input.appointment_date,
+      appointment_time: input.appointment_time
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (updateAppointmentError) throw updateAppointmentError;
+
+  let booking = null;
+  if (appointment.booking_request_id) {
+    const { data: bookingData, error: bookingError } = await admin
+      .from('booking_requests')
+      .update({
+        preferred_date: input.appointment_date,
+        preferred_time: input.appointment_time
+      })
+      .eq('id', appointment.booking_request_id)
+      .select('*')
+      .single();
+    if (bookingError) throw bookingError;
+    booking = bookingData;
+  }
+
+  if (booking && input.notify_customer) {
+    await Promise.all([
+      createNotification({
+        bookingRequestId: booking.id,
+        appointmentId: updatedAppointment.id,
+        channel: 'email',
+        eventType: 'customer_appointment_rescheduled_email',
+        recipient: booking.email,
+        subject: `BP Auto Repair updated your appointment ${booking.reference}`,
+        body: `Hi ${booking.customer_name}, your ${booking.service_needed} appointment has been updated to ${input.appointment_date} at ${input.appointment_time}.`
+      }),
+      createNotification({
+        bookingRequestId: booking.id,
+        appointmentId: updatedAppointment.id,
+        channel: 'sms',
+        eventType: 'customer_appointment_rescheduled_sms',
+        recipient: booking.phone,
+        body: `BP Auto Repair updated your appointment to ${input.appointment_date} at ${input.appointment_time}.`
+      })
+    ]);
+  }
+
+  return updatedAppointment;
 }
 
 export async function getDashboardData() {

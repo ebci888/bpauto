@@ -12,6 +12,16 @@ type Props = {
 
 type Tab = 'schedule' | 'queue' | 'bookings' | 'customers' | 'vehicles' | 'cleanup' | 'notifications';
 type ScheduleMode = 'day' | 'week';
+type ScheduleEntry = {
+  id: string;
+  date: string;
+  time: string;
+  title: string;
+  body: string;
+  tone: 'requested' | 'confirmed';
+  bookingId: string | null;
+  appointmentId: string | null;
+};
 
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'schedule', label: 'Schedule' },
@@ -122,22 +132,43 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
     await refresh();
   }
 
-  async function confirmBooking(event: React.FormEvent<HTMLFormElement>, booking: BookingRequest) {
-    event.preventDefault();
-    setConfirming(booking.id);
-    const form = event.currentTarget;
-    const payload = Object.fromEntries(new FormData(form).entries());
-    const response = await fetch(`/api/booking-requests/${booking.id}/confirm`, {
+  async function submitConfirmBooking(bookingId: string, payload: Record<string, unknown>) {
+    const response = await fetch(`/api/booking-requests/${bookingId}/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
     if (!response.ok) {
       const result = await response.json().catch(() => ({}));
-      alert(result.error || 'Could not confirm appointment.');
+      throw new Error(result.error || 'Could not confirm appointment.');
+    }
+    await refresh();
+  }
+
+  async function submitRescheduleAppointment(appointmentId: string, payload: Record<string, unknown>) {
+    const response = await fetch(`/api/appointments/${appointmentId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || 'Could not reschedule appointment.');
+    }
+    await refresh();
+  }
+
+  async function confirmBooking(event: React.FormEvent<HTMLFormElement>, booking: BookingRequest) {
+    event.preventDefault();
+    setConfirming(booking.id);
+    const form = event.currentTarget;
+    const payload = Object.fromEntries(new FormData(form).entries());
+    try {
+      await submitConfirmBooking(booking.id, { ...payload, notify_customer: true });
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Could not confirm appointment.');
     }
     setConfirming(null);
-    await refresh();
   }
 
   return (
@@ -185,6 +216,8 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
             selectedDate={scheduleDate}
             onModeChange={setScheduleMode}
             onDateChange={setScheduleDate}
+            onConfirmBooking={submitConfirmBooking}
+            onRescheduleAppointment={submitRescheduleAppointment}
           />
           <QuickCapturePanel
             quickStatus={quickStatus}
@@ -330,7 +363,9 @@ function ScheduleView({
   mode,
   selectedDate,
   onModeChange,
-  onDateChange
+  onDateChange,
+  onConfirmBooking,
+  onRescheduleAppointment
 }: {
   bookings: DashboardData['bookings'];
   appointments: DashboardData['appointments'];
@@ -339,12 +374,17 @@ function ScheduleView({
   selectedDate: string;
   onModeChange: (mode: ScheduleMode) => void;
   onDateChange: (date: string) => void;
+  onConfirmBooking: (bookingId: string, payload: Record<string, unknown>) => Promise<void>;
+  onRescheduleAppointment: (appointmentId: string, payload: Record<string, unknown>) => Promise<void>;
 }) {
+  const [selectedEntry, setSelectedEntry] = useState<ScheduleEntry | null>(null);
+  const [draggedEntry, setDraggedEntry] = useState<ScheduleEntry | null>(null);
+  const [actionStatus, setActionStatus] = useState('');
   const bookingMap = new Map(bookings.map((booking) => [booking.id, booking]));
   const dates = mode === 'day' ? [selectedDate] : weekDays(selectedDate);
   const step = mode === 'day' ? 1 : 7;
 
-  const requestedEntries = bookings
+  const requestedEntries: ScheduleEntry[] = bookings
     .filter((booking) => booking.status === 'requested')
     .map((booking) => ({
       id: booking.id,
@@ -352,10 +392,12 @@ function ScheduleView({
       time: booking.preferred_time,
       title: booking.customer_name,
       body: `${booking.service_needed} · ${booking.vehicle_description}`,
-      tone: 'requested' as const
+      tone: 'requested',
+      bookingId: booking.id,
+      appointmentId: null
     }));
 
-  const confirmedEntries = appointments
+  const confirmedEntries: ScheduleEntry[] = appointments
     .filter((appointment) => appointment.status === 'confirmed')
     .map((appointment) => {
       const booking = appointment.booking_request_id ? bookingMap.get(appointment.booking_request_id) : null;
@@ -365,12 +407,40 @@ function ScheduleView({
         time: appointment.appointment_time,
         title: booking?.customer_name || 'Confirmed job',
         body: booking ? `${booking.service_needed} · ${booking.vehicle_description}` : 'Appointment confirmed',
-        tone: 'confirmed' as const
+        tone: 'confirmed',
+        bookingId: appointment.booking_request_id,
+        appointmentId: appointment.id
       };
     });
 
   const entries = [...requestedEntries, ...confirmedEntries].sort((a, b) => a.time.localeCompare(b.time));
   const unscheduledWalkIns = queueItems.filter((item) => !item.booking_request_id);
+
+  async function handleScheduleAction(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedEntry) return;
+
+    setActionStatus(selectedEntry.tone === 'requested' ? 'Confirming...' : 'Rescheduling...');
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const payload = {
+      appointment_date: String(formData.get('appointment_date') || ''),
+      appointment_time: String(formData.get('appointment_time') || ''),
+      notify_customer: formData.get('notify_customer') === 'on'
+    };
+
+    try {
+      if (selectedEntry.tone === 'requested' && selectedEntry.bookingId) {
+        await onConfirmBooking(selectedEntry.bookingId, payload);
+      } else if (selectedEntry.tone === 'confirmed' && selectedEntry.appointmentId) {
+        await onRescheduleAppointment(selectedEntry.appointmentId, payload);
+      }
+      setSelectedEntry(null);
+      setActionStatus('');
+    } catch (error) {
+      setActionStatus(error instanceof Error ? error.message : 'Could not update schedule.');
+    }
+  }
 
   return (
     <section className="dashboard-panel schedule-panel">
@@ -406,7 +476,17 @@ function ScheduleView({
           const dayQueue = date === todayKey() ? unscheduledWalkIns : [];
 
           return (
-            <article className="schedule-day" key={date}>
+            <article
+              className="schedule-day"
+              key={date}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => {
+                if (draggedEntry) {
+                  setSelectedEntry({ ...draggedEntry, date });
+                  setDraggedEntry(null);
+                }
+              }}
+            >
               <div className="schedule-day-heading">
                 <strong>{shortDateLabel(date)}</strong>
                 <span>{dayEntries.length + dayQueue.length} jobs</span>
@@ -414,11 +494,19 @@ function ScheduleView({
               {dayEntries.length || dayQueue.length ? (
                 <div className="schedule-events">
                   {dayEntries.map((entry) => (
-                    <div className={`schedule-event ${entry.tone}`} key={`${entry.tone}-${entry.id}`}>
+                    <button
+                      type="button"
+                      className={`schedule-event ${entry.tone}`}
+                      draggable
+                      key={`${entry.tone}-${entry.id}`}
+                      onClick={() => setSelectedEntry(entry)}
+                      onDragStart={() => setDraggedEntry(entry)}
+                      onDragEnd={() => setDraggedEntry(null)}
+                    >
                       <span>{entry.time}</span>
                       <strong>{entry.title}</strong>
                       <p>{entry.body}</p>
-                    </div>
+                    </button>
                   ))}
                   {dayQueue.map((item) => (
                     <div className="schedule-event walk-in" key={item.id}>
@@ -435,6 +523,36 @@ function ScheduleView({
           );
         })}
       </div>
+      {selectedEntry && (
+        <div className="schedule-action-panel">
+          <div>
+            <p>{selectedEntry.tone === 'requested' ? 'Confirm request' : 'Reschedule appointment'}</p>
+            <h3>{selectedEntry.title}</h3>
+            <span>{selectedEntry.body}</span>
+          </div>
+          <form onSubmit={handleScheduleAction}>
+            <label>
+              <span>Date</span>
+              <input name="appointment_date" type="date" defaultValue={selectedEntry.date} required />
+            </label>
+            <label>
+              <span>Time</span>
+              <input name="appointment_time" defaultValue={selectedEntry.time} required />
+            </label>
+            <label className="notify-toggle">
+              <input name="notify_customer" type="checkbox" defaultChecked />
+              <span>Notify customer</span>
+            </label>
+            <div className="schedule-action-buttons">
+              <button type="submit">{selectedEntry.tone === 'requested' ? 'Confirm' : 'Save Change'}</button>
+              <button type="button" onClick={() => setSelectedEntry(null)}>
+                Cancel
+              </button>
+            </div>
+            <p role="status">{actionStatus}</p>
+          </form>
+        </div>
+      )}
     </section>
   );
 }
