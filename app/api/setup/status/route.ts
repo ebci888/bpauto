@@ -7,6 +7,17 @@ function configured(names: string[]) {
   return names.every((name) => Boolean(process.env[name]));
 }
 
+const requiredTables = [
+  'profiles',
+  'customers',
+  'vehicles',
+  'booking_requests',
+  'queue_items',
+  'appointments',
+  'notification_events',
+  'audit_events'
+];
+
 export async function GET() {
   const supabasePublicConfigured = configured(['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY']);
   const supabaseAdminConfigured = configured(['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']);
@@ -16,14 +27,23 @@ export async function GET() {
   let databaseReachable = false;
   let migrationApplied = false;
   let databaseError = '';
+  const existingTables: string[] = [];
+  const missingTables: string[] = [];
 
   if (supabaseAdminConfigured) {
     try {
       const admin = getSupabaseAdmin();
-      const { error } = await admin.from('profiles').select('id', { count: 'exact', head: true });
-      databaseReachable = !error;
-      migrationApplied = !error;
-      databaseError = error?.message ?? '';
+      for (const table of requiredTables) {
+        const { error } = await admin.from(table).select('id').limit(1);
+        if (error) {
+          missingTables.push(table);
+          databaseError ||= error.message;
+        } else {
+          existingTables.push(table);
+        }
+      }
+      databaseReachable = existingTables.length > 0;
+      migrationApplied = missingTables.length === 0;
     } catch (error) {
       databaseError = error instanceof Error ? error.message : 'Could not connect to Supabase';
     }
@@ -39,6 +59,8 @@ export async function GET() {
       serviceRoleConfigured: supabaseAdminConfigured,
       databaseReachable,
       migrationApplied,
+      existingTables,
+      missingTables,
       error: databaseError || null
     },
     auth: {
@@ -52,6 +74,8 @@ export async function GET() {
     },
     nextStep: readyForLogin
       ? 'Create or sign in with the owner account, then test /dashboard.'
-      : 'Add Supabase env vars, apply the migration, and set OWNER_EMAIL.'
+      : missingTables.length
+        ? `Apply the Supabase migration. Missing tables: ${missingTables.join(', ')}.`
+        : 'Add Supabase env vars, apply the migration, and set OWNER_EMAIL.'
   });
 }
