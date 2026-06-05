@@ -4,6 +4,11 @@ Private shop operating system behind the BP Auto Repair public website.
 
 The public website is preserved at `/`. The private owner dashboard lives at `/dashboard` and is intended to be gated with Supabase Auth.
 
+## Project Docs
+
+- [PROJECT_BUILD.md](./PROJECT_BUILD.md) tracks what has been built, what is demo-ready, and what should be treated as optional add-on modules.
+- [TODO.md](./TODO.md) tracks upcoming technical/product tasks.
+
 ## Stack
 
 - Next.js App Router

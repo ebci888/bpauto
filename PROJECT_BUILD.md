@@ -1,0 +1,335 @@
+# BP Auto Repair OS - Build Notes
+
+This document tracks what has been built, what is demo-ready, and what should be treated as optional add-on modules for BP Auto Repair in Surrey, BC.
+
+The goal is to show a complete-feeling prototype without pretending every possible shop-management feature has already been fully built.
+
+## Product Positioning
+
+BP Auto Repair OS is a private shop dashboard behind the public BP Auto Repair website.
+
+The public site stays as the public marketing/booking site. The dashboard is the private owner/mechanic system at `/dashboard`.
+
+The MVP is intentionally request-first:
+
+- Customer submits a booking request.
+- The request enters the shop system.
+- Owner confirms, reschedules, or manages it from the dashboard.
+- Customer notifications are logged now and can be sent later through Brevo/Twilio.
+
+## Current Core Build
+
+### Public Website
+
+- Existing public website is preserved at `/`.
+- Public booking form posts to `/api/bookings`.
+- Booking creates:
+  - customer record
+  - vehicle record
+  - booking request
+  - today queue item
+  - notification event rows
+
+### Private Dashboard
+
+- Private dashboard lives at `/dashboard`.
+- Login is powered by Supabase Auth.
+- Owner account is configured through `OWNER_EMAIL`.
+- Staff roles exist in schema:
+  - owner
+  - mechanic
+  - staff
+- Owner-only actions are protected server-side.
+
+### Supabase Backend
+
+Tables created:
+
+- `profiles`
+- `customers`
+- `vehicles`
+- `booking_requests`
+- `queue_items`
+- `appointments`
+- `notification_events`
+- `audit_events`
+
+RLS is enabled. The browser does not directly manage shop data. Server routes use the Supabase service role key.
+
+### Setup Diagnostics
+
+`/api/setup/status` checks:
+
+- public Supabase keys
+- service role key
+- required database tables
+- owner profile readiness
+- Brevo/Twilio readiness
+
+This prevents false-positive setup where keys exist but tables do not.
+
+## Dashboard Modules Built
+
+### Schedule
+
+The dashboard now opens to a calendar-first schedule view.
+
+Built views:
+
+- Day
+- Week
+- Month
+
+Current schedule behavior:
+
+- Requested bookings show as schedule cards.
+- Confirmed appointments show as schedule cards.
+- Walk-ins/quick captures show as today items.
+- Cards can be clicked to open an action panel.
+- Week/month cards can be dragged onto another day.
+- Dropping a card opens the action panel so the owner confirms exact date/time.
+
+Current appointment actions:
+
+- Confirm a requested booking from the schedule.
+- Reschedule a confirmed appointment.
+- Optionally log/send customer notification for confirm/reschedule.
+
+### Booking Requests
+
+- Owner can view all booking requests.
+- Requested bookings can be confirmed.
+- Duplicate confirmed appointment slots are blocked.
+
+### Today Queue
+
+- Queue items are created from public bookings and quick captures.
+- Queue items can be incomplete.
+- Missing fields are shown as suggestions, not blockers.
+- Owner can mark payment status or follow-up status.
+
+### Quick Capture
+
+Quick Capture is now compact instead of taking over the dashboard.
+
+Built behavior:
+
+- Collapsed behind `+ Quick Add`.
+- Required field: quick note only.
+- Optional structured details are tucked under `Details`.
+- Supports phone-first dictation through the phone keyboard.
+- Saves incomplete queue items without blocking.
+
+### End-of-Day Cleanup
+
+- Shows incomplete records.
+- Missing fields are surfaced as cleanup suggestions.
+- Designed for after-rush cleanup rather than blocking the owner during the day.
+
+### Notification Log
+
+- Every notification attempt creates a `notification_events` row.
+- Statuses:
+  - pending
+  - sent
+  - failed
+  - skipped
+- Brevo/Twilio are not required for MVP.
+- If providers are missing, events are logged as `skipped`.
+
+## Current Notification Scope
+
+Built now:
+
+- Owner alert event logging.
+- Customer request-received event logging.
+- Customer appointment-confirmed event logging.
+- Customer appointment-rescheduled event logging.
+
+Future provider wiring:
+
+- Brevo for email.
+- Twilio for SMS.
+- Twilio inbound webhook for customer SMS replies.
+
+## Demo Scope
+
+The demo should feel complete around this workflow:
+
+1. Customer submits booking from public site.
+2. Owner logs into dashboard.
+3. Owner sees booking on schedule/month/week/day.
+4. Owner clicks or drags the booking.
+5. Owner confirms/reschedules.
+6. Queue and notification logs update.
+7. Incomplete records can be cleaned up later.
+
+This is enough to show the system idea clearly without needing a full accounting or repair-order system.
+
+## Optional Add-On Modules
+
+These should be positioned as optional modules, not part of the basic booking MVP.
+
+### Repair Job Tracking
+
+Useful for multi-day auto repair work where a vehicle may stay in the shop.
+
+Suggested fields:
+
+- job status
+  - scheduled
+  - checked in
+  - in progress
+  - waiting for parts
+  - paused
+  - ready
+  - completed
+- estimated start date
+- estimated completion date
+- estimated hours
+- actual hours
+- billable hours
+- technician/mechanic assigned
+- internal notes
+- customer-facing notes
+
+### Time Tracking
+
+Potential options:
+
+- Manual time entries.
+- Start/stop timer per vehicle/job.
+- Pause reasons such as waiting for parts or customer approval.
+- Daily mechanic time log.
+
+This should stay simple at first. A timer can become distracting if the shop does not naturally work that way.
+
+### Repair Notes / Visit Reports
+
+Each visit could have a running work log:
+
+- diagnosis notes
+- work completed
+- parts needed
+- parts ordered
+- customer approved work
+- photos/videos
+- technician notes
+- final summary
+
+This becomes the foundation for customer transparency and future invoices.
+
+### Labor Guide / Book Time
+
+This should be treated as a future estimating module.
+
+Important: BP Auto Repair is in Surrey, BC, Canada, so Canadian availability and shop practice matter.
+
+Potential reference sources:
+
+- ALLDATA Canada
+- Mitchell 1 Canada / ProDemand
+- MOTOR Estimated Work Times
+
+Manual MVP fields:
+
+- labor guide source
+- standard/book hours
+- quoted hours
+- actual hours
+- billable hours
+- shop hourly rate
+- discount or adjustment reason
+
+Demo value:
+
+- The shop can show a customer: standard time says 2.0 hours, but the shop is billing 1.0 hour.
+- This can help explain pricing and build trust.
+
+Do not integrate paid labor guide data until the client confirms what they already use.
+
+### Customer SMS Workflow
+
+Potential SMS interactions:
+
+- request received
+- appointment confirmed
+- appointment rescheduled
+- you are next
+- please check in
+- approval needed
+- vehicle ready
+- customer asks to reschedule by SMS
+
+Future technical pieces:
+
+- Twilio inbound webhook.
+- Message parser.
+- Owner approval before customer-driven schedule changes.
+- Notification history attached to customer/vehicle/job.
+
+### Customer Portal
+
+Optional later:
+
+- Customer sees request status.
+- Customer confirms/reschedules.
+- Customer approves work.
+- Customer sees visit notes/photos.
+- Customer pays deposit or invoice.
+
+This is likely not required for the first paid version.
+
+## Canada / BC Notes
+
+Use Canadian terminology and assumptions where possible:
+
+- Use labour/labor carefully depending on UI audience. For shop software, `labour` may be more Canadian, but many industry tools still use `labor`.
+- Use CAD pricing when pricing is added.
+- Do not assume US repair law, US taxes, or US labour-guide access.
+- For any consumer-estimate/invoice compliance, confirm BC-specific requirements before building legal/compliance language.
+
+## Source Notes
+
+Relevant industry references checked:
+
+- ALLDATA Canada: OEM repair information, shop management, two-way texting, appointments calendar, time reporting, automated parts/labour lookups.
+- ALLDATA Labour Times: OEM labour times as an add-on to ALLDATA Repair.
+- Mitchell 1 Canada / ProDemand: repair information, estimating, OEM pricing, parts diagrams, and labour-time guides.
+- MOTOR Estimated Work Times: labour time guidance for service and repair operations.
+
+These sources support the product direction, but the MVP should remain manual-entry until the client confirms their preferred labour guide/provider.
+
+## Build History
+
+### Core MVP
+
+- Converted project into Next.js App Router.
+- Preserved public website.
+- Added Supabase Auth/Postgres backend.
+- Added private dashboard.
+- Added booking API.
+- Added quick capture.
+- Added queue, cleanup, and notification log.
+- Added setup status endpoint.
+
+### Scheduling MVP
+
+- Added schedule-first dashboard.
+- Added day/week/month views.
+- Added clickable schedule cards.
+- Added drag-to-reschedule interaction.
+- Added appointment reschedule API.
+- Added optional notification intent for schedule changes.
+
+## Recommended Next Step
+
+Add lightweight job tracking fields:
+
+- job status
+- estimated hours
+- actual hours
+- billable hours
+- internal notes
+
+This gives the demo enough depth for real auto repair work without overbuilding full repair orders, invoicing, or labour-guide integrations yet.
