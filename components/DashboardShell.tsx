@@ -592,61 +592,68 @@ function ScheduleView({
         })}
       </div>
       {selectedEntry && (
-        <div className="schedule-action-panel">
-          <div>
-            <p>{selectedEntry.tone === 'requested' ? 'Confirm request' : 'Reschedule appointment'}</p>
-            <h3>{selectedEntry.title}</h3>
-            <span>{selectedEntry.body}</span>
-          </div>
-          <form onSubmit={handleScheduleAction}>
-            <label>
-              <span>Date</span>
-              <input name="appointment_date" type="date" defaultValue={selectedEntry.date} required />
-            </label>
-            <label>
-              <span>Time</span>
-              <input name="appointment_time" defaultValue={selectedEntry.time} required />
-            </label>
-            <label>
-              <span>Job status</span>
-              <select name="job_status" defaultValue={selectedEntry.jobStatus}>
-                <option value="scheduled">Scheduled</option>
-                <option value="checked_in">Checked in</option>
-                <option value="in_progress">In progress</option>
-                <option value="waiting_parts">Waiting for parts</option>
-                <option value="paused">Paused</option>
-                <option value="ready">Ready</option>
-                <option value="completed">Completed</option>
-              </select>
-            </label>
-            <label>
-              <span>Estimated hours</span>
-              <input name="estimated_hours" type="number" min="0" step="0.25" defaultValue={selectedEntry.estimatedHours ?? ''} />
-            </label>
-            <label>
-              <span>Actual hours</span>
-              <input name="actual_hours" type="number" min="0" step="0.25" defaultValue={selectedEntry.actualHours ?? ''} />
-            </label>
-            <label>
-              <span>Billable hours</span>
-              <input name="billable_hours" type="number" min="0" step="0.25" defaultValue={selectedEntry.billableHours ?? ''} />
-            </label>
-            <label className="wide-field">
-              <span>Internal notes</span>
-              <textarea name="internal_notes" defaultValue={selectedEntry.internalNotes} placeholder="Diagnosis, parts delay, work done, next step..." />
-            </label>
-            <label className="notify-toggle">
-              <input name="notify_customer" type="checkbox" defaultChecked />
-              <span>Notify customer</span>
-            </label>
-            <div className="schedule-action-buttons">
-              <button type="submit">{selectedEntry.tone === 'requested' ? 'Confirm' : 'Save Change'}</button>
-              <button type="button" onClick={() => setSelectedEntry(null)}>
-                Cancel
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelectedEntry(null)}>
+          <section className="job-modal" role="dialog" aria-modal="true" aria-labelledby="job-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="job-modal-header">
+              <div>
+                <p>{selectedEntry.tone === 'requested' ? 'Confirm request' : 'Job details'}</p>
+                <h3 id="job-modal-title">{selectedEntry.title}</h3>
+                <span>{selectedEntry.body}</span>
+              </div>
+              <button type="button" aria-label="Close job details" onClick={() => setSelectedEntry(null)}>
+                Close
               </button>
             </div>
-            <p role="status">{actionStatus}</p>
-          </form>
+            <form className="job-modal-form" onSubmit={handleScheduleAction}>
+              <label>
+                <span>Date</span>
+                <input name="appointment_date" type="date" defaultValue={selectedEntry.date} required />
+              </label>
+              <label>
+                <span>Time</span>
+                <input name="appointment_time" defaultValue={selectedEntry.time} required />
+              </label>
+              <label>
+                <span>Job status</span>
+                <select name="job_status" defaultValue={selectedEntry.jobStatus}>
+                  <option value="scheduled">Scheduled</option>
+                  <option value="checked_in">Checked in</option>
+                  <option value="in_progress">In progress</option>
+                  <option value="waiting_parts">Waiting for parts</option>
+                  <option value="paused">Paused</option>
+                  <option value="ready">Ready</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </label>
+              <label>
+                <span>Estimated hours</span>
+                <input name="estimated_hours" type="number" min="0" step="0.25" defaultValue={selectedEntry.estimatedHours ?? ''} />
+              </label>
+              <label>
+                <span>Actual hours</span>
+                <input name="actual_hours" type="number" min="0" step="0.25" defaultValue={selectedEntry.actualHours ?? ''} />
+              </label>
+              <label>
+                <span>Billable hours</span>
+                <input name="billable_hours" type="number" min="0" step="0.25" defaultValue={selectedEntry.billableHours ?? ''} />
+              </label>
+              <label className="wide-field">
+                <span>Internal notes</span>
+                <textarea name="internal_notes" defaultValue={selectedEntry.internalNotes} placeholder="Diagnosis, parts delay, work done, next step..." />
+              </label>
+              <label className="notify-toggle">
+                <input name="notify_customer" type="checkbox" defaultChecked />
+                <span>Notify customer</span>
+              </label>
+              <div className="job-modal-actions">
+                <button type="submit">{selectedEntry.tone === 'requested' ? 'Confirm' : 'Save Change'}</button>
+                <button type="button" onClick={() => setSelectedEntry(null)}>
+                  Cancel
+                </button>
+              </div>
+              <p role="status">{actionStatus}</p>
+            </form>
+          </section>
         </div>
       )}
     </section>

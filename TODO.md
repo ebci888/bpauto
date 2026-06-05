@@ -9,6 +9,12 @@
 - Add mechanic assignment.
 - Add customer-facing visit notes/work notes for each vehicle visit.
 
+## Responsive QA
+
+- Run a full responsive audit before demo.
+- Check public booking form and dashboard at phone, tablet, and desktop sizes.
+- Confirm modals, calendar grids, forms, and buttons do not overlap or overflow unexpectedly.
+
 ## Customer SMS Flow
 
 - Add Twilio inbound webhook for customer replies.

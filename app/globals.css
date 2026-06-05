@@ -91,7 +91,7 @@ a {
 
 .login-form label,
 .quick-capture-form label,
-.schedule-action-panel label {
+.job-modal-form label {
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -99,7 +99,7 @@ a {
 
 .login-form span,
 .quick-capture-form span,
-.schedule-action-panel label span {
+.job-modal-form label span {
   color: var(--dashboard-muted);
   font-size: 12px;
   font-weight: 850;
@@ -112,9 +112,9 @@ a {
 .quick-capture-form select,
 .quick-capture-form textarea,
 .confirm-form input,
-.schedule-action-panel input,
-.schedule-action-panel select,
-.schedule-action-panel textarea {
+.job-modal-form input,
+.job-modal-form select,
+.job-modal-form textarea {
   width: 100%;
   border: 1.5px solid var(--dashboard-line);
   border-radius: 8px;
@@ -134,7 +134,7 @@ a {
 .mode-toggle button,
 .quick-capture-heading button,
 .quick-capture-form button,
-.schedule-action-buttons button,
+.job-modal-actions button,
 .confirm-form button,
 .record-actions button,
 .dashboard-tabs button {
@@ -498,16 +498,36 @@ a {
   font-size: 12px;
 }
 
-.schedule-action-panel {
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(340px, 520px);
-  gap: 16px;
+  place-items: center;
   padding: 18px;
-  border-top: 1px solid var(--dashboard-line);
-  background: #fff;
+  background: rgba(17, 24, 39, 0.48);
 }
 
-.schedule-action-panel > div > p {
+.job-modal {
+  width: min(760px, 100%);
+  max-height: min(760px, calc(100vh - 36px));
+  overflow: auto;
+  border: 1px solid var(--dashboard-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 30px 90px rgba(17, 24, 39, 0.24);
+}
+
+.job-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  border-bottom: 1px solid var(--dashboard-line);
+}
+
+.job-modal-header p {
   margin: 0 0 5px;
   color: var(--dashboard-blue);
   font-size: 11px;
@@ -516,30 +536,41 @@ a {
   text-transform: uppercase;
 }
 
-.schedule-action-panel h3 {
+.job-modal-header h3 {
   font-size: 20px;
 }
 
-.schedule-action-panel > div > span {
+.job-modal-header span {
   display: block;
   margin-top: 8px;
   color: var(--dashboard-muted);
   font-size: 14px;
 }
 
-.schedule-action-panel form {
+.job-modal-header button {
+  min-height: 38px;
+  border: 1px solid var(--dashboard-line);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--dashboard-ink);
+  font-weight: 850;
+}
+
+.job-modal-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  padding: 18px;
 }
 
-.schedule-action-panel input,
-.schedule-action-panel select {
+.job-modal-form input,
+.job-modal-form select {
   min-height: 44px;
   padding: 0 12px;
 }
 
-.schedule-action-panel textarea {
+.job-modal-form textarea {
   min-height: 92px;
   padding: 12px;
   resize: vertical;
@@ -569,26 +600,26 @@ a {
   text-transform: none !important;
 }
 
-.schedule-action-buttons {
+.job-modal-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
 }
 
-.schedule-action-buttons button {
+.job-modal-actions button {
   min-height: 42px;
   padding: 0 14px;
   color: #fff;
   background: var(--dashboard-blue);
 }
 
-.schedule-action-buttons button[type="button"] {
+.job-modal-actions button[type="button"] {
   color: var(--dashboard-ink);
   background: #fff;
   border: 1px solid var(--dashboard-line);
 }
 
-.schedule-action-panel form > p {
+.job-modal-form > p {
   align-self: center;
   min-height: 20px;
   margin: 0;
@@ -812,17 +843,32 @@ a {
   }
 
   .schedule-header,
-  .quick-capture-heading,
-  .schedule-action-panel {
+  .quick-capture-heading {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .schedule-action-panel {
-    display: flex;
+  .modal-backdrop {
+    align-items: end;
+    padding: 10px;
   }
 
-  .schedule-action-panel form {
+  .job-modal {
+    width: 100%;
+    max-height: calc(100vh - 20px);
+    border-radius: 12px 12px 8px 8px;
+  }
+
+  .job-modal-header {
+    flex-direction: column;
+  }
+
+  .job-modal-header button,
+  .job-modal-actions button {
+    width: 100%;
+  }
+
+  .job-modal-form {
     grid-template-columns: 1fr;
   }
 

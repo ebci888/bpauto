@@ -172,6 +172,18 @@ The demo should feel complete around this workflow:
 
 This is enough to show the system idea clearly without needing a full accounting or repair-order system.
 
+## Responsive Standard
+
+Every dashboard module should be checked at phone, tablet, and desktop sizes before demo.
+
+Expected behavior:
+
+- Phone: large tap targets, no horizontal overflow except intentional calendar grids, modal content scrolls cleanly.
+- Tablet: schedule controls and cards remain readable.
+- Desktop: calendar views use available width without feeling sparse.
+
+Current job details interaction uses a modal on desktop and a bottom-sheet style modal on mobile.
+
 ## Optional Add-On Modules
 
 These should be positioned as optional modules, not part of the basic booking MVP.
