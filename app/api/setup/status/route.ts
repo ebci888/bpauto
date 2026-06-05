@@ -17,6 +17,7 @@ const requiredTables = [
   'notification_events',
   'audit_events',
   'shop_hours',
+  'special_hours',
   'blocked_times'
 ];
 

@@ -14,6 +14,7 @@ export type DashboardData = {
   appointments: Appointment[];
   notifications: NotificationEvent[];
   shopHours: ShopHour[];
+  specialHours: SpecialHour[];
   blockedTimes: BlockedTime[];
 };
 
@@ -124,6 +125,19 @@ export type ShopHour = {
   opens_at: string | null;
   closes_at: string | null;
   slot_interval_minutes: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SpecialHour = {
+  id: string;
+  special_date: string;
+  is_open: boolean;
+  opens_at: string | null;
+  closes_at: string | null;
+  slot_interval_minutes: number;
+  reason: string | null;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 };

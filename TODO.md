@@ -5,7 +5,7 @@
 - Let the owner click schedule cards to confirm or reschedule.
 - Let the owner drag cards in week/month view, then confirm the new day/time.
 - Log customer notification intent for confirmation and reschedule changes.
-- Add holiday/special-date hours separate from regular weekly hours.
+- Add recurring holiday templates if the shop wants automated annual closures.
 - Let the owner override a requested slot from the dashboard when needed.
 - Add multi-day jobs for repairs that stay in the shop.
 - Add mechanic assignment.

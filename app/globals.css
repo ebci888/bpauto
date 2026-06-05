@@ -754,7 +754,15 @@ a {
   line-height: 1.45;
 }
 
-.availability-toolbar button {
+.availability-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.availability-toolbar button,
+.availability-actions button {
   min-height: 42px;
   padding: 0 14px;
   color: #fff;
@@ -907,6 +915,11 @@ a {
   border: 1px solid var(--dashboard-line);
 }
 
+.inline-actions {
+  margin-top: 0;
+  justify-content: flex-end;
+}
+
 .plain-danger {
   min-height: 36px;
   padding: 0 12px;
@@ -986,8 +999,13 @@ a {
   .schedule-controls button,
   .mode-toggle,
   .quick-capture-heading button,
-  .availability-toolbar button {
+  .availability-toolbar button,
+  .availability-actions {
     width: 100%;
+  }
+
+  .availability-actions {
+    flex-direction: column;
   }
 
   .dashboard-header h1 {

@@ -71,6 +71,11 @@ export const shopHourSchema = z.object({
   })
 });
 
+export const specialHourSchema = shopHourSchema.extend({
+  special_date: z.string().trim().min(1),
+  reason: z.string().optional().default('')
+});
+
 const jobStatuses = new Set(['scheduled', 'checked_in', 'in_progress', 'waiting_parts', 'paused', 'ready', 'completed']);
 const shopTimeZone = 'America/Vancouver';
 
@@ -125,6 +130,20 @@ function weekdayFromDateKey(value: string) {
 
 function overlaps(slotMinutes: number, start: string, end: string) {
   return slotMinutes >= minutesFromTime(start) && slotMinutes < minutesFromTime(end);
+}
+
+function cleanScheduleHours(input: { is_open: boolean; opens_at?: string; closes_at?: string }) {
+  const opensAt = input.is_open ? clean(input.opens_at) : null;
+  const closesAt = input.is_open ? clean(input.closes_at) : null;
+
+  if (input.is_open && (!opensAt || !closesAt)) {
+    throw new Error('Open days need opening and closing times.');
+  }
+  if (input.is_open && minutesFromTime(opensAt || '') >= minutesFromTime(closesAt || '')) {
+    throw new Error('Closing time must be after opening time.');
+  }
+
+  return { opensAt, closesAt };
 }
 
 function cleanJobStatus(value: string | null | undefined) {
@@ -255,18 +274,27 @@ export async function getAvailableSlots(date: string) {
 
   const admin = getSupabaseAdmin();
   const dayOfWeek = weekdayFromDateKey(date);
-  const [{ data: hours, error: hoursError }, { data: blocks, error: blocksError }, { data: appointments, error: appointmentsError }, { data: bookings, error: bookingsError }] =
+  const [
+    { data: weeklyHours, error: hoursError },
+    { data: specialHours, error: specialHoursError },
+    { data: blocks, error: blocksError },
+    { data: appointments, error: appointmentsError },
+    { data: bookings, error: bookingsError }
+  ] =
     await Promise.all([
       admin.from('shop_hours').select('*').eq('day_of_week', dayOfWeek).maybeSingle(),
+      admin.from('special_hours').select('*').eq('special_date', date).maybeSingle(),
       admin.from('blocked_times').select('*').eq('block_date', date),
       admin.from('appointments').select('appointment_time').eq('appointment_date', date).eq('status', 'confirmed'),
       admin.from('booking_requests').select('preferred_time').eq('preferred_date', date).eq('status', 'requested')
     ]);
 
   if (hoursError) throw hoursError;
+  if (specialHoursError) throw specialHoursError;
   if (blocksError) throw blocksError;
   if (appointmentsError) throw appointmentsError;
   if (bookingsError) throw bookingsError;
+  const hours = specialHours ?? weeklyHours;
   if (!hours?.is_open || !hours.opens_at || !hours.closes_at) return [];
 
   const taken = new Set([
@@ -321,15 +349,7 @@ export async function deleteBlockedTime(id: string) {
 export async function updateShopHour(id: string, raw: unknown) {
   const input = shopHourSchema.parse(raw);
   const admin = getSupabaseAdmin();
-  const opensAt = input.is_open ? clean(input.opens_at) : null;
-  const closesAt = input.is_open ? clean(input.closes_at) : null;
-
-  if (input.is_open && (!opensAt || !closesAt)) {
-    throw new Error('Open days need opening and closing times.');
-  }
-  if (input.is_open && minutesFromTime(opensAt || '') >= minutesFromTime(closesAt || '')) {
-    throw new Error('Closing time must be after opening time.');
-  }
+  const { opensAt, closesAt } = cleanScheduleHours(input);
 
   const { data, error } = await admin
     .from('shop_hours')
@@ -344,6 +364,38 @@ export async function updateShopHour(id: string, raw: unknown) {
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function upsertSpecialHour(raw: unknown, createdBy?: string | null) {
+  const input = specialHourSchema.parse(raw);
+  const admin = getSupabaseAdmin();
+  const { opensAt, closesAt } = cleanScheduleHours(input);
+
+  const { data, error } = await admin
+    .from('special_hours')
+    .upsert(
+      {
+        special_date: input.special_date,
+        is_open: input.is_open,
+        opens_at: opensAt,
+        closes_at: closesAt,
+        slot_interval_minutes: input.slot_interval_minutes,
+        reason: clean(input.reason) || null,
+        created_by: createdBy ?? null
+      },
+      { onConflict: 'special_date' }
+    )
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteSpecialHour(id: string) {
+  const admin = getSupabaseAdmin();
+  const { error } = await admin.from('special_hours').delete().eq('id', id);
+  if (error) throw error;
+  return { ok: true };
 }
 
 export async function createWebsiteBooking(raw: unknown) {
@@ -682,7 +734,7 @@ export async function rescheduleAppointment(id: string, raw: unknown) {
 
 export async function getDashboardData() {
   const admin = getSupabaseAdmin();
-  const [bookings, customers, vehicles, queueItems, appointments, notifications, shopHours, blockedTimes] = await Promise.all([
+  const [bookings, customers, vehicles, queueItems, appointments, notifications, shopHours, specialHours, blockedTimes] = await Promise.all([
     admin.from('booking_requests').select('*').order('created_at', { ascending: false }).limit(100),
     admin.from('customers').select('*').order('updated_at', { ascending: false }).limit(100),
     admin.from('vehicles').select('*').order('updated_at', { ascending: false }).limit(100),
@@ -690,10 +742,11 @@ export async function getDashboardData() {
     admin.from('appointments').select('*').order('created_at', { ascending: false }).limit(100),
     admin.from('notification_events').select('*').order('created_at', { ascending: false }).limit(100),
     admin.from('shop_hours').select('*').order('day_of_week', { ascending: true }),
+    admin.from('special_hours').select('*').order('special_date', { ascending: true }).limit(100),
     admin.from('blocked_times').select('*').order('block_date', { ascending: true }).order('start_time', { ascending: true }).limit(100)
   ]);
 
-  for (const result of [bookings, customers, vehicles, queueItems, appointments, notifications, shopHours, blockedTimes]) {
+  for (const result of [bookings, customers, vehicles, queueItems, appointments, notifications, shopHours, specialHours, blockedTimes]) {
     if (result.error) throw result.error;
   }
 
@@ -705,6 +758,7 @@ export async function getDashboardData() {
     appointments: appointments.data ?? [],
     notifications: notifications.data ?? [],
     shopHours: shopHours.data ?? [],
+    specialHours: specialHours.data ?? [],
     blockedTimes: blockedTimes.data ?? []
   };
 }

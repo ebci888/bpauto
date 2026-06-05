@@ -116,6 +116,7 @@ Built availability behavior:
 - Default shop hours are seeded in Supabase.
 - Owner can edit regular shop hours from the Availability tab.
 - Owner can mark a weekday closed or adjust open/close times and slot intervals.
+- Owner can add special-date hours or closures that override regular weekly hours.
 - Public booking time slots are loaded from `/api/availability`.
 - Slots are removed when there is:
   - an owner blocked-time record
@@ -128,7 +129,7 @@ Built availability behavior:
 Future availability behavior:
 
 - Owner can override or reschedule from the dashboard when shop reality changes.
-- Add holiday/special-date hours separate from regular weekday hours.
+- Add recurring holiday templates if the shop wants automated annual closures.
 
 ### Booking Requests
 

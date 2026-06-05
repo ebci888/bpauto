@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { BlockedTime, DashboardData, BookingRequest, QueueItem, ShopHour } from '@/types/database';
+import type { BlockedTime, DashboardData, BookingRequest, QueueItem, ShopHour, SpecialHour } from '@/types/database';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 type Props = {
@@ -114,6 +114,8 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   const [bookingConfirmStatus, setBookingConfirmStatus] = useState('');
   const [blockModalOpen, setBlockModalOpen] = useState(false);
   const [selectedShopHour, setSelectedShopHour] = useState<ShopHour | null>(null);
+  const [specialHourModalOpen, setSpecialHourModalOpen] = useState(false);
+  const [selectedSpecialHour, setSelectedSpecialHour] = useState<SpecialHour | null>(null);
   const [availabilityStatus, setAvailabilityStatus] = useState('');
 
   const todayQueue = useMemo(() => data.queueItems.filter((item) => item.queue_date === todayKey()), [data.queueItems]);
@@ -154,6 +156,18 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
 
   function closeShopHourModal() {
     setSelectedShopHour(null);
+    setAvailabilityStatus('');
+  }
+
+  function openSpecialHourModal(hour?: SpecialHour) {
+    setAvailabilityStatus('');
+    setSelectedSpecialHour(hour ?? null);
+    setSpecialHourModalOpen(true);
+  }
+
+  function closeSpecialHourModal() {
+    setSelectedSpecialHour(null);
+    setSpecialHourModalOpen(false);
     setAvailabilityStatus('');
   }
 
@@ -313,6 +327,44 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
     }
   }
 
+  async function saveSpecialHours(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAvailabilityStatus('Saving...');
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const payload = {
+      special_date: String(formData.get('special_date') || ''),
+      is_open: formData.get('is_open') === 'on',
+      opens_at: String(formData.get('opens_at') || ''),
+      closes_at: String(formData.get('closes_at') || ''),
+      slot_interval_minutes: String(formData.get('slot_interval_minutes') || '60'),
+      reason: String(formData.get('reason') || '')
+    };
+    const response = await fetch('/api/availability/special-hours', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (response.ok) {
+      setAvailabilityStatus('Special hours saved.');
+      closeSpecialHourModal();
+      await refresh();
+    } else {
+      const result = await response.json().catch(() => ({}));
+      setAvailabilityStatus(result.error || 'Could not save special hours.');
+    }
+  }
+
+  async function removeSpecialHours(id: string) {
+    const response = await fetch(`/api/availability/special-hours/${id}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      alert(result.error || 'Could not remove special hours.');
+      return;
+    }
+    await refresh();
+  }
+
   return (
     <main className="dashboard-page">
       <header className="dashboard-header">
@@ -384,15 +436,23 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
       {tab === 'availability' && (
         <AvailabilityPanel
           shopHours={data.shopHours}
+          specialHours={data.specialHours}
           blockedTimes={data.blockedTimes}
           modalOpen={blockModalOpen}
           selectedShopHour={selectedShopHour}
+          specialHourModalOpen={specialHourModalOpen}
+          selectedSpecialHour={selectedSpecialHour}
           status={availabilityStatus}
           onOpen={openBlockModal}
           onClose={closeBlockModal}
           onEditHour={openShopHourModal}
           onCloseHour={closeShopHourModal}
           onSubmitHour={updateShopHours}
+          onOpenSpecialHour={() => openSpecialHourModal()}
+          onEditSpecialHour={openSpecialHourModal}
+          onCloseSpecialHour={closeSpecialHourModal}
+          onSubmitSpecialHour={saveSpecialHours}
+          onDeleteSpecialHour={removeSpecialHours}
           onSubmit={addBlockedTime}
           onDelete={removeBlockedTime}
         />
@@ -868,28 +928,44 @@ function ScheduleView({
 
 function AvailabilityPanel({
   shopHours,
+  specialHours,
   blockedTimes,
   modalOpen,
   selectedShopHour,
+  specialHourModalOpen,
+  selectedSpecialHour,
   status,
   onOpen,
   onClose,
   onEditHour,
   onCloseHour,
   onSubmitHour,
+  onOpenSpecialHour,
+  onEditSpecialHour,
+  onCloseSpecialHour,
+  onSubmitSpecialHour,
+  onDeleteSpecialHour,
   onSubmit,
   onDelete
 }: {
   shopHours: ShopHour[];
+  specialHours: SpecialHour[];
   blockedTimes: BlockedTime[];
   modalOpen: boolean;
   selectedShopHour: ShopHour | null;
+  specialHourModalOpen: boolean;
+  selectedSpecialHour: SpecialHour | null;
   status: string;
   onOpen: () => void;
   onClose: () => void;
   onEditHour: (hour: ShopHour) => void;
   onCloseHour: () => void;
   onSubmitHour: (event: React.FormEvent<HTMLFormElement>) => void;
+  onOpenSpecialHour: () => void;
+  onEditSpecialHour: (hour: SpecialHour) => void;
+  onCloseSpecialHour: () => void;
+  onSubmitSpecialHour: (event: React.FormEvent<HTMLFormElement>) => void;
+  onDeleteSpecialHour: (id: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onDelete: (id: string) => void;
 }) {
@@ -900,9 +976,14 @@ function AvailabilityPanel({
           <h3>Shop Hours</h3>
           <p>Default hours are used for public booking slots.</p>
         </div>
-        <button type="button" onClick={onOpen}>
-          Block Time
-        </button>
+        <div className="availability-actions">
+          <button type="button" onClick={onOpenSpecialHour}>
+            Special Date
+          </button>
+          <button type="button" onClick={onOpen}>
+            Block Time
+          </button>
+        </div>
       </div>
       <div className="availability-grid">
         {shopHours.map((hour) => (
@@ -914,6 +995,36 @@ function AvailabilityPanel({
             </button>
           </article>
         ))}
+      </div>
+      <div className="availability-section">
+        <h3>Special Dates</h3>
+        {specialHours.length ? (
+          <div className="record-list compact">
+            {specialHours.map((hour) => (
+              <article className="record-card" key={hour.id}>
+                <div className="record-top">
+                  <div>
+                    <h3>{hour.special_date}</h3>
+                    <p>
+                      {hour.is_open ? `${hour.opens_at?.slice(0, 5)}-${hour.closes_at?.slice(0, 5)} · ${hour.slot_interval_minutes}m slots` : 'Closed'}
+                      {hour.reason ? ` · ${hour.reason}` : ''}
+                    </p>
+                  </div>
+                  <div className="record-actions inline-actions">
+                    <button type="button" onClick={() => onEditSpecialHour(hour)}>
+                      Edit
+                    </button>
+                    <button type="button" className="plain-danger" onClick={() => onDeleteSpecialHour(hour.id)}>
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <EmptyState text="No special dates yet." />
+        )}
       </div>
       <div className="availability-section">
         <h3>Blocked Time</h3>
@@ -973,6 +1084,61 @@ function AvailabilityPanel({
               <div className="job-modal-actions">
                 <button type="submit">Save Block</button>
                 <button type="button" onClick={onClose}>
+                  Cancel
+                </button>
+              </div>
+              <p role="status">{status}</p>
+            </form>
+          </section>
+        </div>
+      )}
+      {specialHourModalOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={onCloseSpecialHour}>
+          <section className="job-modal availability-modal" role="dialog" aria-modal="true" aria-labelledby="special-hours-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="job-modal-header">
+              <div>
+                <p>Special date</p>
+                <h3 id="special-hours-modal-title">{selectedSpecialHour ? selectedSpecialHour.special_date : 'Add Special Date'}</h3>
+                <span>Override regular weekly hours for one specific date.</span>
+              </div>
+              <button type="button" aria-label="Close special hours modal" onClick={onCloseSpecialHour}>
+                Close
+              </button>
+            </div>
+            <form className="job-modal-form" onSubmit={onSubmitSpecialHour}>
+              <label>
+                <span>Date</span>
+                <input name="special_date" type="date" defaultValue={selectedSpecialHour?.special_date || todayKey()} readOnly={Boolean(selectedSpecialHour)} required />
+              </label>
+              <label className="notify-toggle">
+                <input name="is_open" type="checkbox" defaultChecked={selectedSpecialHour?.is_open ?? false} />
+                <span>Open on this date</span>
+              </label>
+              <label>
+                <span>Opens</span>
+                <input name="opens_at" type="time" defaultValue={selectedSpecialHour?.opens_at?.slice(0, 5) || '08:00'} />
+              </label>
+              <label>
+                <span>Closes</span>
+                <input name="closes_at" type="time" defaultValue={selectedSpecialHour?.closes_at?.slice(0, 5) || '17:00'} />
+              </label>
+              <label>
+                <span>Slot interval</span>
+                <select name="slot_interval_minutes" defaultValue={selectedSpecialHour?.slot_interval_minutes || 60}>
+                  <option value="30">30 minutes</option>
+                  <option value="45">45 minutes</option>
+                  <option value="60">60 minutes</option>
+                  <option value="90">90 minutes</option>
+                  <option value="120">120 minutes</option>
+                </select>
+              </label>
+              <label className="wide-field">
+                <span>Reason</span>
+                <textarea name="reason" defaultValue={selectedSpecialHour?.reason || ''} placeholder="Holiday, staff training, special Saturday hours..." />
+              </label>
+              <div className="job-modal-actions">
+                <button type="submit">Save Special Date</button>
+                <button type="button" onClick={onCloseSpecialHour}>
                   Cancel
                 </button>
               </div>
