@@ -10,8 +10,10 @@ type Props = {
   staffRole: string;
 };
 
-type Tab = 'schedule' | 'availability' | 'queue' | 'bookings' | 'customers' | 'vehicles' | 'cleanup' | 'notifications';
+type Tab = 'schedule' | 'availability' | 'queue' | 'bookings' | 'customers' | 'vehicles' | 'cleanup' | 'notifications' | 'demo';
 type ScheduleMode = 'day' | 'week' | 'month';
+type DemoModuleKey = 'aiAssistant' | 'spamShield' | 'notifications' | 'advancedCalendar';
+type DemoControls = Record<DemoModuleKey, boolean>;
 type ScheduleEntry = {
   id: string;
   date: string;
@@ -41,6 +43,13 @@ type NotificationSetupStatus = {
 };
 type NotificationTestChannel = 'email' | 'sms';
 
+const defaultDemoControls: DemoControls = {
+  aiAssistant: true,
+  spamShield: true,
+  notifications: true,
+  advancedCalendar: true
+};
+
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'schedule', label: 'Schedule' },
   { id: 'availability', label: 'Availability' },
@@ -49,7 +58,8 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'customers', label: 'Customers' },
   { id: 'vehicles', label: 'Vehicles' },
   { id: 'cleanup', label: 'End-of-Day' },
-  { id: 'notifications', label: 'Notifications' }
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'demo', label: 'Demo Controls' }
 ];
 
 function dateText(value: string) {
@@ -134,10 +144,13 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   const [notificationSetupStatus, setNotificationSetupStatus] = useState('');
   const [notificationTestStatus, setNotificationTestStatus] = useState('');
   const [notificationTestBusy, setNotificationTestBusy] = useState<NotificationTestChannel | null>(null);
+  const [demoControls, setDemoControls] = useState<DemoControls>(defaultDemoControls);
+  const [demoControlsLoaded, setDemoControlsLoaded] = useState(false);
 
   const todayQueue = useMemo(() => data.queueItems.filter((item) => item.queue_date === todayKey()), [data.queueItems]);
   const incomplete = useMemo(() => data.queueItems.filter((item) => item.is_incomplete), [data.queueItems]);
   const requestedBookings = useMemo(() => data.bookings.filter((booking) => booking.status === 'requested'), [data.bookings]);
+  const suspectedBookings = useMemo(() => data.bookings.filter((booking) => booking.spam_status === 'suspected'), [data.bookings]);
 
   useEffect(() => {
     if (tab !== 'notifications' || notificationSetup) return;
@@ -161,6 +174,22 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
       cancelled = true;
     };
   }, [tab, notificationSetup]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('bp-demo-controls');
+      if (saved) setDemoControls({ ...defaultDemoControls, ...JSON.parse(saved) });
+    } catch {
+      setDemoControls(defaultDemoControls);
+    } finally {
+      setDemoControlsLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!demoControlsLoaded) return;
+    window.localStorage.setItem('bp-demo-controls', JSON.stringify(demoControls));
+  }, [demoControls, demoControlsLoaded]);
 
   async function refresh() {
     const response = await fetch('/api/dashboard');
@@ -192,6 +221,10 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
     } finally {
       setNotificationTestBusy(null);
     }
+  }
+
+  function toggleDemoControl(key: DemoModuleKey) {
+    setDemoControls((current) => ({ ...current, [key]: !current[key] }));
   }
 
   function openQuickCapture() {
@@ -700,6 +733,20 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
           />
         </Panel>
       )}
+
+      {tab === 'demo' && (
+        <DemoControlsPanel
+          controls={demoControls}
+          onToggle={toggleDemoControl}
+          onOpenTab={setTab}
+          metrics={{
+            requested: requestedBookings.length,
+            suspected: suspectedBookings.length,
+            notifications: data.notifications.length,
+            appointments: data.appointments.length
+          }}
+        />
+      )}
     </main>
   );
 }
@@ -724,6 +771,113 @@ function Panel({ title, subtitle, children }: { title: string; subtitle: string;
       </div>
       {children}
     </section>
+  );
+}
+
+function DemoControlsPanel({
+  controls,
+  onToggle,
+  onOpenTab,
+  metrics
+}: {
+  controls: DemoControls;
+  onToggle: (key: DemoModuleKey) => void;
+  onOpenTab: (tab: Tab) => void;
+  metrics: {
+    requested: number;
+    suspected: number;
+    notifications: number;
+    appointments: number;
+  };
+}) {
+  const modules: Array<{
+    key: DemoModuleKey;
+    title: string;
+    summary: string;
+    proof: string;
+    tab: Tab;
+  }> = [
+    {
+      key: 'advancedCalendar',
+      title: 'Advanced Calendar',
+      summary: 'Day, week, and month views with click-to-edit and drag-to-reschedule demo flow.',
+      proof: `${metrics.requested} requests, ${metrics.appointments} appointments ready`,
+      tab: 'schedule'
+    },
+    {
+      key: 'aiAssistant',
+      title: 'AI Assistant',
+      summary: 'Public site assistant supports typed chat, browser voice input, and spoken replies.',
+      proof: 'Gemini/OpenAI-ready with local fallback',
+      tab: 'schedule'
+    },
+    {
+      key: 'spamShield',
+      title: 'Spam Shield',
+      summary: 'Booking requests are scored before alerts, with suspected spam saved quietly.',
+      proof: `${metrics.suspected} suspected requests visible`,
+      tab: 'bookings'
+    },
+    {
+      key: 'notifications',
+      title: 'Notifications',
+      summary: 'Email/SMS events are logged with provider setup and test-send controls.',
+      proof: `${metrics.notifications} notification events logged`,
+      tab: 'notifications'
+    }
+  ];
+
+  return (
+    <Panel title="Demo Controls" subtitle="Presenter switches for showing the prototype as modules instead of one giant system.">
+      <div className="demo-hero">
+        <div>
+          <h3>Client Presentation Mode</h3>
+          <p>
+            Use these switches to frame what is included in the demo. They do not delete data or disable the live booking flow; they keep the walkthrough focused.
+          </p>
+        </div>
+        <a href="/" target="_blank" rel="noreferrer">
+          Open Public Demo
+        </a>
+      </div>
+
+      <div className="demo-module-grid">
+        {modules.map((module) => (
+          <article key={module.key} className={controls[module.key] ? 'enabled' : ''}>
+            <div className="record-top">
+              <div>
+                <h3>{module.title}</h3>
+                <p>{module.summary}</p>
+              </div>
+              <label className="demo-switch">
+                <input type="checkbox" checked={controls[module.key]} onChange={() => onToggle(module.key)} />
+                <span>{controls[module.key] ? 'On' : 'Off'}</span>
+              </label>
+            </div>
+            <div className="meta-row">
+              <span>{module.proof}</span>
+              <span>{controls[module.key] ? 'Show in demo' : 'Mention as add-on'}</span>
+            </div>
+            <div className="record-actions">
+              <button type="button" onClick={() => onOpenTab(module.tab)}>
+                View Module
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="demo-script">
+        <h3>Suggested Walkthrough</h3>
+        <ol>
+          <li>Open the public site and show the booking calendar plus AI assistant.</li>
+          <li>Submit or explain a request-first booking flow.</li>
+          <li>Switch to Schedule and show day, week, and month views.</li>
+          <li>Open a booking or job modal and show notes, hours, and customer notification options.</li>
+          <li>Close with spam shield, notification logs, and end-of-day cleanup as paid add-ons.</li>
+        </ol>
+      </div>
+    </Panel>
   );
 }
 

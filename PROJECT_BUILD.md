@@ -229,6 +229,20 @@ Demo provider env vars:
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL`
 
+## Demo Controls
+
+Built behavior:
+
+- Private dashboard includes a `Demo Controls` tab for client presentation.
+- Presenter switches show which prototype modules are included in the walkthrough:
+  - Advanced Calendar
+  - AI Assistant
+  - Spam Shield
+  - Notifications
+- Toggles are saved locally in the browser and do not delete data or disable production booking logic.
+- Each module card links back to the relevant dashboard area for fast demo navigation.
+- Includes a suggested walkthrough script for showing the public site, request-first booking, calendar, job notes, notifications, spam shield, and cleanup.
+
 ## Demo Scope
 
 The demo should feel complete around this workflow:

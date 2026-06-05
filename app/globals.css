@@ -908,6 +908,99 @@ a {
   font-weight: 750;
 }
 
+.demo-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border-bottom: 1px solid var(--dashboard-line);
+  background: #f8fafc;
+}
+
+.demo-hero h3,
+.demo-script h3 {
+  font-size: 17px;
+}
+
+.demo-hero p,
+.demo-script li {
+  color: var(--dashboard-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.demo-hero p {
+  max-width: 680px;
+  margin: 6px 0 0;
+}
+
+.demo-hero a {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0 14px;
+  border-radius: 8px;
+  color: #fff;
+  background: var(--dashboard-blue);
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.demo-module-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px;
+}
+
+.demo-module-grid article {
+  border: 1px solid var(--dashboard-line);
+  border-radius: 10px;
+  padding: 14px;
+  background: #fff;
+}
+
+.demo-module-grid article.enabled {
+  border-color: #bfdbfe;
+  background: #f8fbff;
+}
+
+.demo-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 4px 5px 4px 10px;
+  border: 1px solid var(--dashboard-line);
+  border-radius: 999px;
+  color: var(--dashboard-muted);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.demo-switch input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--dashboard-blue);
+}
+
+.demo-script {
+  padding: 0 18px 18px;
+}
+
+.demo-script ol {
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+
+.demo-script li + li {
+  margin-top: 6px;
+}
+
 .record-card {
   border: 1px solid var(--dashboard-line);
   border-radius: 10px;
@@ -1042,6 +1135,7 @@ a {
   }
 
   .metric-grid,
+  .demo-module-grid,
   .setup-grid,
   .quick-capture-form,
   .quick-details > div {
@@ -1050,6 +1144,7 @@ a {
 
   .schedule-header,
   .availability-toolbar,
+  .demo-hero,
   .notification-setup-heading,
   .quick-capture-heading {
     align-items: stretch;
@@ -1114,5 +1209,9 @@ a {
 
   .dashboard-header h1 {
     font-size: 28px;
+  }
+
+  .demo-hero a {
+    width: 100%;
   }
 }
