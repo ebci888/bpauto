@@ -11,7 +11,7 @@ type NotificationInput = {
 };
 
 const brevoRequiredEnv = ['BREVO_API_KEY', 'BREVO_FROM_EMAIL'];
-const twilioRequiredEnv = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM'];
+const twilioRequiredEnv = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'];
 const ownerAlertRequiredEnv = ['OWNER_EMAIL'];
 
 function envConfigured(names: string[]) {
@@ -27,7 +27,11 @@ function emailConfigured() {
 }
 
 function smsConfigured() {
-  return envConfigured(twilioRequiredEnv);
+  return envConfigured(twilioRequiredEnv) && Boolean(process.env.TWILIO_FROM || process.env.TWILIO_MESSAGING_SERVICE_SID);
+}
+
+function brandSms(text: string) {
+  return text.trim().startsWith('BP Auto Repair:') ? text.trim() : `BP Auto Repair: ${text.trim()}`;
 }
 
 export function getNotificationSetupStatus() {
@@ -40,8 +44,11 @@ export function getNotificationSetupStatus() {
     },
     twilio: {
       ready: smsConfigured(),
-      requiredEnv: twilioRequiredEnv,
-      missingEnv: missingEnv(twilioRequiredEnv),
+      requiredEnv: [...twilioRequiredEnv, 'TWILIO_FROM or TWILIO_MESSAGING_SERVICE_SID'],
+      missingEnv: [
+        ...missingEnv(twilioRequiredEnv),
+        ...(process.env.TWILIO_FROM || process.env.TWILIO_MESSAGING_SERVICE_SID ? [] : ['TWILIO_FROM or TWILIO_MESSAGING_SERVICE_SID'])
+      ],
       optionalEnv: ['OWNER_PHONE']
     },
     ownerAlerts: {
@@ -81,10 +88,14 @@ async function sendBrevoEmail(to: string, subject: string, text: string) {
 async function sendTwilioSms(to: string, bodyText: string) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID || '';
   const body = new URLSearchParams({
-    From: process.env.TWILIO_FROM || '',
     To: to,
-    Body: bodyText
+    Body: brandSms(bodyText)
   });
+  if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
+    body.set('MessagingServiceSid', process.env.TWILIO_MESSAGING_SERVICE_SID);
+  } else {
+    body.set('From', process.env.TWILIO_FROM || '');
+  }
   const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
     method: 'POST',
     headers: {

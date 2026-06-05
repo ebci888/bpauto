@@ -176,6 +176,7 @@ Built behavior:
 - If providers are missing, events are logged as `skipped`.
 - Notification tab includes a provider setup checklist showing Brevo/Twilio readiness and missing env vars.
 - Owner can trigger test email/SMS events from the Notification Log after adding provider credentials.
+- SMS sending supports either `TWILIO_FROM` or `TWILIO_MESSAGING_SERVICE_SID`, and outbound SMS bodies are branded with `BP Auto Repair:`.
 
 ## Current Notification Scope
 
