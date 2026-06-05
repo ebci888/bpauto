@@ -20,11 +20,16 @@ export function LoginForm() {
       return;
     }
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setLoading(false);
+        setStatus(error.message);
+        return;
+      }
+    } catch (error) {
       setLoading(false);
-      setStatus(error.message);
+      setStatus(error instanceof Error ? error.message : 'Could not sign in.');
       return;
     }
 
