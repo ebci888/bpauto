@@ -228,7 +228,15 @@
     .cal-day.empty { cursor: default; }
     .cal-day.disabled { opacity: 0.35; cursor: not-allowed; }
     .cal-day.disabled:hover { background: transparent; color: var(--text); }
+    .cal-day.available { box-shadow: inset 0 -2px #16a34a; }
+    .cal-day.unavailable { background: #f8fafc; color: #9ca3af; cursor: not-allowed; text-decoration: line-through; }
+    .cal-day.unavailable:hover { background: #f8fafc; color: #9ca3af; }
+    .cal-day.loading { color: var(--muted); }
     .cal-day.today { border: 1.5px solid var(--blue); color: var(--blue); }
+    .cal-legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; color: var(--muted); font-size: 11px; font-weight: 700; }
+    .cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .cal-legend i { width: 9px; height: 9px; display: inline-block; border-radius: 50%; background: #16a34a; }
+    .cal-legend .closed i { background: #cbd5e1; }
     .time-slots { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
     .time-slots-note { color: var(--muted); font-size: 12px; line-height: 1.45; }
     .time-slot {
@@ -821,6 +829,7 @@
             <button class="cal-nav" type="button" onclick="nextMonth()">›</button>
           </div>
           <div class="cal-grid" id="cal-grid"></div>
+          <div class="cal-legend"><span><i></i> Available</span><span class="closed"><i></i> Closed/full</span></div>
         </div>
         <input type="hidden" name="preferred_date" id="preferredDate" required />
         <label style="font-size:12px;font-weight:700;color:var(--charcoal-2);font-family:'Montserrat',sans-serif;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Available Times</label>
@@ -1132,6 +1141,17 @@
   const preferredDate = document.getElementById('preferredDate');
   const preferredTime = document.getElementById('preferredTime');
   const timeSlots = document.getElementById('timeSlots');
+  let monthAvailabilityKey = '';
+  let monthAvailabilityLoadingKey = '';
+  let monthAvailability = {};
+
+  function selectedMonthKey() {
+    return `${cYear}-${String(cMonth + 1).padStart(2, '0')}`;
+  }
+
+  function calendarDateValue(day) {
+    return `${cYear}-${String(cMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
 
   function setTimeSlotsMessage(message, color = 'var(--muted)') {
     timeSlots.innerHTML = '';
@@ -1167,7 +1187,28 @@
     }
   }
 
+  async function loadMonthAvailability() {
+    const key = selectedMonthKey();
+    if (monthAvailabilityKey === key || monthAvailabilityLoadingKey === key) return;
+    monthAvailabilityLoadingKey = key;
+    try {
+      const response = await fetch(`/api/availability/month?year=${cYear}&month=${cMonth + 1}`);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not load month availability.');
+      monthAvailability = Object.fromEntries((result.days || []).map((day) => [day.date, day.slotCount]));
+      monthAvailabilityKey = key;
+      renderCal();
+    } catch {
+      monthAvailability = {};
+      monthAvailabilityKey = key;
+    } finally {
+      monthAvailabilityLoadingKey = '';
+    }
+  }
+
   function renderCal() {
+    const currentKey = selectedMonthKey();
+    const hasMonthAvailability = monthAvailabilityKey === currentKey;
     document.getElementById('cal-month-label').textContent = MONTHS[cMonth] + ' ' + cYear;
     const grid = document.getElementById('cal-grid');
     grid.innerHTML = '';
@@ -1182,22 +1223,34 @@
     }
     for (let d = 1; d <= daysIn; d++) {
       const el = document.createElement('div');
-      const isSun = new Date(cYear, cMonth, d).getDay() === 0;
+      const dateValue = calendarDateValue(d);
       const isPast = new Date(cYear, cMonth, d) < new Date(t.getFullYear(), t.getMonth(), t.getDate());
       const isToday = d === t.getDate() && cMonth === t.getMonth() && cYear === t.getFullYear();
-      el.className = 'cal-day' + (isToday ? ' today' : '') + (d === selDay ? ' active' : '') + (isSun || isPast ? ' disabled' : '');
+      const slotCount = hasMonthAvailability ? monthAvailability[dateValue] : null;
+      const noSlots = hasMonthAvailability && slotCount === 0;
+      const selectable = !isPast && !noSlots;
+      el.className =
+        'cal-day' +
+        (isToday ? ' today' : '') +
+        (d === selDay ? ' active' : '') +
+        (!hasMonthAvailability && !isPast ? ' loading' : '') +
+        (slotCount > 0 ? ' available' : '') +
+        (noSlots ? ' unavailable' : '') +
+        (!selectable ? ' disabled' : '');
       el.textContent = d;
-      if (!isSun && !isPast) el.onclick = () => {
+      el.title = noSlots ? 'No request times available' : slotCount > 0 ? `${slotCount} request times available` : '';
+      if (selectable) el.onclick = () => {
         selDay = d;
-        preferredDate.value = `${cYear}-${String(cMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        preferredDate.value = dateValue;
         loadAvailableTimes(preferredDate.value);
         renderCal();
       };
       grid.appendChild(el);
     }
+    loadMonthAvailability();
   }
-  function prevMonth() { cMonth === 0 ? (cMonth = 11, cYear--) : cMonth--; renderCal(); }
-  function nextMonth() { cMonth === 11 ? (cMonth = 0, cYear++) : cMonth++; renderCal(); }
+  function prevMonth() { cMonth === 0 ? (cMonth = 11, cYear--) : cMonth--; selDay = null; preferredDate.value = ''; preferredTime.value = ''; setTimeSlotsMessage('Choose a date to see available request times.'); renderCal(); }
+  function nextMonth() { cMonth === 11 ? (cMonth = 0, cYear++) : cMonth++; selDay = null; preferredDate.value = ''; preferredTime.value = ''; setTimeSlotsMessage('Choose a date to see available request times.'); renderCal(); }
   renderCal();
 
   // Time slot

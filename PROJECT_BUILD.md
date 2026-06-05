@@ -118,6 +118,8 @@ Built availability behavior:
 - Owner can mark a weekday closed or adjust open/close times and slot intervals.
 - Owner can add special-date hours or closures that override regular weekly hours.
 - Public booking time slots are loaded from `/api/availability`.
+- Public booking calendar loads month availability from `/api/availability/month`.
+- Public calendar visually marks available dates and closed/full dates.
 - Slots are removed when there is:
   - an owner blocked-time record
   - a confirmed appointment
