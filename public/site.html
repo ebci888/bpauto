@@ -422,6 +422,10 @@
       transform-origin: bottom right;
     }
     .voice-panel.open { display: flex; opacity: 1; transform: scale(1) translateY(0); }
+    .voice-panel.assistant-start {
+      height: auto;
+      max-height: min(720px, calc(100vh - 116px));
+    }
     .voice-panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-shrink: 0; }
     .voice-panel-header h4 { color: var(--text); font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 15px; }
     .voice-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 20px; line-height: 1; }
@@ -446,11 +450,91 @@
     .wave-bar:nth-child(6){height:9px;animation-delay:0.5s}
     .wave-bar:nth-child(7){height:14px;animation-delay:0.6s}
     @keyframes waveAnim { 0%,100%{transform:scaleY(0.5);opacity:0.5} 50%{transform:scaleY(1);opacity:1} }
+    .assistant-launcher {
+      flex: 0 0 auto;
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+      margin-bottom: 10px;
+    }
+    .assistant-launcher.hidden { display: none; }
+    .assistant-launcher p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .assistant-choice-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .assistant-choice {
+      min-width: 0;
+      min-height: 54px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 2px;
+      padding: 10px 11px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--light);
+      color: var(--text);
+      text-align: left;
+      text-decoration: none;
+      cursor: pointer;
+      font-family: 'Montserrat', sans-serif;
+      transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+    }
+    .assistant-choice:hover,
+    .assistant-choice:focus-visible {
+      transform: translateY(-1px);
+      border-color: var(--blue-pale);
+      background: #fff;
+      box-shadow: 0 8px 18px rgba(29, 78, 216, 0.12);
+      outline: none;
+    }
+    .assistant-choice.primary {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #fff;
+    }
+    .assistant-choice.primary:hover,
+    .assistant-choice.primary:focus-visible {
+      background: #1e40af;
+      border-color: #1e40af;
+    }
+    .assistant-choice span {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      font-size: 12px;
+      font-weight: 850;
+      line-height: 1.1;
+    }
+    .assistant-choice small {
+      max-width: 100%;
+      color: inherit;
+      opacity: 0.72;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
     .assistant-messages {
       display: flex; flex-direction: column; gap: 10px;
       min-height: 0; overflow-y: auto; padding: 4px 2px 12px;
       scroll-behavior: smooth;
       flex: 1 1 0;
+    }
+    .assistant-messages:empty {
+      flex: 0 0 auto;
+      min-height: 0;
+      padding: 0;
     }
     .assistant-message {
       max-width: 86%; border-radius: 14px; padding: 10px 12px;
@@ -649,6 +733,7 @@
       .voice-widget > * { pointer-events: auto; }
       .voice-panel { right: 0; bottom: 74px; width: min(100%, 390px); height: calc(100vh - 106px); padding: 18px; }
       .assistant-messages { min-height: 90px; }
+      .assistant-messages:empty { min-height: 0; }
     }
 
     @media (max-width: 480px) {
@@ -678,6 +763,7 @@
       .voice-btn { width: 58px; height: 58px; }
       .voice-panel { width: 100%; border-radius: 18px; }
       .assistant-actions { flex-direction: column; }
+      .assistant-choice { min-height: 50px; padding: 9px; }
     }
   </style>
 </head>
@@ -1214,8 +1300,8 @@
     <div class="voice-ai-status">
       <div class="voice-ai-avatar">AI</div>
       <div class="voice-ai-info">
-        <h5>Demo assistant</h5>
-        <p id="assistantProvider">Ask by voice or text</p>
+        <h5>Ava, service assistant</h5>
+        <p id="assistantProvider">Choose how to connect</p>
         <div class="wave-bars">
           <div class="wave-bar"></div><div class="wave-bar"></div>
           <div class="wave-bar"></div><div class="wave-bar"></div>
@@ -1224,22 +1310,43 @@
         </div>
       </div>
     </div>
+    <div class="assistant-launcher" id="assistantLauncher">
+      <p>Fastest: talk to Ava and she can fill the booking form while you speak.</p>
+      <div class="assistant-choice-grid">
+        <button class="assistant-choice primary" type="button" onclick="startVoiceChat()">
+          <span>AI voice chat</span>
+          <small>Speak naturally</small>
+        </button>
+        <button class="assistant-choice" type="button" onclick="openTextChat()">
+          <span>Text chat</span>
+          <small>Type details</small>
+        </button>
+        <button class="assistant-choice" type="button" onclick="openBookingCalendarFromAssistant()">
+          <span>Book online</span>
+          <small>Use calendar</small>
+        </button>
+        <a class="assistant-choice" href="tel:+16045902788" onclick="assistantStatus.textContent='Calling BP Auto Repair from your phone.'">
+          <span>Call shop</span>
+          <small>604-590-2788</small>
+        </a>
+      </div>
+    </div>
     <div class="assistant-messages" id="assistantMessages" aria-live="polite"></div>
     <div class="assistant-input-zone">
       <form class="assistant-composer" id="assistantForm">
         <button class="assistant-mic" type="button" id="assistantMic" aria-label="Start voice chat" onclick="startVoiceChat()">🎙</button>
-        <input id="assistantInput" type="text" autocomplete="off" placeholder="Ask about service, booking, or symptoms..." />
+        <input id="assistantInput" type="text" autocomplete="off" placeholder="Type a question or booking detail..." />
         <button class="assistant-send" id="assistantSend" type="submit" aria-label="Send message">→</button>
       </form>
       <div class="assistant-draft" id="assistantDraft">
-        <h5>Booking draft</h5>
+        <h5>Booking checklist</h5>
         <ul id="assistantDraftList"></ul>
         <div class="assistant-draft-actions">
           <button class="secondary" type="button" onclick="applyAssistantDraft()">Fill Form</button>
           <button type="button" id="assistantSubmitBooking" onclick="submitAssistantBooking()">Send Request</button>
         </div>
       </div>
-      <p class="assistant-status-line" id="assistantStatus">Voice uses your browser microphone when supported.</p>
+      <p class="assistant-status-line" id="assistantStatus">Start with voice, text, calendar, or a direct call.</p>
     </div>
   </div>
   <button class="voice-btn" onclick="openAssistantPanel()" aria-label="Open AI Assistant">
@@ -1535,6 +1642,7 @@
   const assistantMic = document.getElementById('assistantMic');
   const assistantStatus = document.getElementById('assistantStatus');
   const assistantProvider = document.getElementById('assistantProvider');
+  const assistantLauncher = document.getElementById('assistantLauncher');
   const assistantDraft = document.getElementById('assistantDraft');
   const assistantDraftList = document.getElementById('assistantDraftList');
   const assistantSubmitBooking = document.getElementById('assistantSubmitBooking');
@@ -1564,6 +1672,17 @@
     bubble.textContent = content;
     assistantMessageList.appendChild(bubble);
     assistantMessageList.scrollTop = assistantMessageList.scrollHeight;
+  }
+
+  function showAssistantLauncher() {
+    if (!assistantLauncher || assistantMessages.length) return;
+    assistantLauncher.classList.remove('hidden');
+    assistantPanel?.classList.add('assistant-start');
+  }
+
+  function hideAssistantLauncher() {
+    assistantLauncher?.classList.add('hidden');
+    assistantPanel?.classList.remove('assistant-start');
   }
 
   function fieldLabel(key) {
@@ -1834,6 +1953,7 @@
     const cleanMessage = (message || '').trim();
     if (!cleanMessage || assistantBusy) return;
 
+    hideAssistantLauncher();
     assistantBusy = true;
     assistantSend.disabled = true;
     assistantStatus.textContent = 'Assistant is thinking...';
@@ -1941,7 +2061,7 @@
   function ensureAssistantReady() {
     if (assistantReady) return;
     assistantReady = true;
-    addAssistantMessage('assistant', 'Hi, I can help with BP Auto Repair services, hours, location, and booking intake. You can type or tap the mic.');
+    showAssistantLauncher();
   }
 
   function openAssistantPanel(focusInput = true) {
@@ -1952,6 +2072,7 @@
     voiceOpen = true;
     assistantPanel.style.display = 'flex';
     ensureAssistantReady();
+    showAssistantLauncher();
     requestAnimationFrame(() => assistantPanel.classList.add('open'));
     document.querySelector('.voice-notif').style.display = 'none';
     if (focusInput) setTimeout(() => assistantInput?.focus(), 180);
@@ -2024,7 +2145,7 @@
     if (realtimeAudio) {
       realtimeAudio.srcObject = null;
     }
-    assistantProvider.textContent = 'Ask by voice or text';
+    assistantProvider.textContent = 'Choose how to connect';
     updateAssistantMicState();
     if (message) assistantStatus.textContent = message;
   }
@@ -2032,6 +2153,7 @@
   async function startVoiceChat() {
     openAssistantPanel(false);
     ensureAssistantReady();
+    hideAssistantLauncher();
 
     if (realtimeConnected || realtimeConnecting) {
       stopRealtimeVoice();
@@ -2120,15 +2242,31 @@
       await peer.setRemoteDescription({ type: 'answer', sdp: answerSdp });
     } catch (error) {
       stopRealtimeVoice('');
-      assistantProvider.textContent = 'Ask by voice or text';
+      assistantProvider.textContent = 'Choose how to connect';
+      if (!assistantMessages.length) showAssistantLauncher();
       updateAssistantMicState();
       assistantStatus.textContent = microphoneErrorMessage(error);
     }
   }
 
-  function openTextChat() {
-    openAssistantPanel();
+  function openBookingCalendarFromAssistant() {
+    openAssistantPanel(false);
     ensureAssistantReady();
+    hideAssistantLauncher();
+    closeAssistantPanel('Booking calendar opened.');
+    document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    bookingStatus.textContent = 'Choose a date and time, or reopen Ava if you want help filling the form.';
+    bookingStatus.style.color = '#166534';
+  }
+
+  function openTextChat() {
+    openAssistantPanel(false);
+    ensureAssistantReady();
+    hideAssistantLauncher();
+    if (!assistantMessages.length) {
+      addAssistantMessage('assistant', 'Hi, I can help with BP Auto Repair services, hours, location, and booking intake. Tell me what is going on with the vehicle.');
+    }
+    assistantStatus.textContent = 'Type naturally. Ava will build the booking checklist as you go.';
     assistantInput?.focus();
   }
 
