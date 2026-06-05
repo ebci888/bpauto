@@ -10,9 +10,11 @@ type Props = {
   staffRole: string;
 };
 
-type Tab = 'queue' | 'bookings' | 'customers' | 'vehicles' | 'cleanup' | 'notifications';
+type Tab = 'schedule' | 'queue' | 'bookings' | 'customers' | 'vehicles' | 'cleanup' | 'notifications';
+type ScheduleMode = 'day' | 'week';
 
 const tabs: Array<{ id: Tab; label: string }> = [
+  { id: 'schedule', label: 'Schedule' },
   { id: 'queue', label: 'Today Queue' },
   { id: 'bookings', label: 'Booking Requests' },
   { id: 'customers', label: 'Customers' },
@@ -25,13 +27,50 @@ function dateText(value: string) {
   return new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  return dateKey(new Date());
+}
+
+function dateFromKey(key: string) {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function addDays(key: string, days: number) {
+  const date = dateFromKey(key);
+  date.setDate(date.getDate() + days);
+  return dateKey(date);
+}
+
+function weekDays(anchorKey: string) {
+  const anchor = dateFromKey(anchorKey);
+  const day = anchor.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  anchor.setDate(anchor.getDate() + mondayOffset);
+  return Array.from({ length: 7 }, (_, index) => dateKey(new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + index)));
+}
+
+function shortDateLabel(key: string) {
+  return dateFromKey(key).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function longDateLabel(key: string) {
+  return dateFromKey(key).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
 export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   const [data, setData] = useState(initialData);
-  const [tab, setTab] = useState<Tab>('queue');
+  const [tab, setTab] = useState<Tab>('schedule');
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('day');
+  const [scheduleDate, setScheduleDate] = useState(todayKey());
+  const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [quickStatus, setQuickStatus] = useState('');
   const [confirming, setConfirming] = useState<string | null>(null);
 
@@ -122,71 +161,10 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
       </header>
 
       <section className="metric-grid" aria-label="Dashboard summary">
+        <Metric label="Confirmed" value={data.appointments.filter((appointment) => appointment.status === 'confirmed').length} />
         <Metric label="Booking requests" value={requestedBookings.length} />
         <Metric label="Today queue" value={todayQueue.length} />
         <Metric label="Incomplete" value={incomplete.length} />
-        <Metric label="Notifications" value={data.notifications.length} />
-      </section>
-
-      <section className="quick-capture-panel">
-        <div className="panel-heading">
-          <div>
-            <p>Phone-first intake</p>
-            <h2>Quick Capture</h2>
-          </div>
-        </div>
-        <form className="quick-capture-form" onSubmit={handleQuickCapture}>
-          <label className="wide">
-            <span>Quick note</span>
-            <textarea name="quick_note" placeholder="Say or type: John, 604-555-1234, red Civic, oil change, waiting" required />
-          </label>
-          <label>
-            <span>Name</span>
-            <input name="customer_name" />
-          </label>
-          <label>
-            <span>Phone</span>
-            <input name="phone" type="tel" />
-          </label>
-          <label>
-            <span>Email</span>
-            <input name="email" type="email" />
-          </label>
-          <label>
-            <span>Vehicle</span>
-            <input name="vehicle_description" />
-          </label>
-          <label>
-            <span>Plate</span>
-            <input name="license_plate" />
-          </label>
-          <label>
-            <span>VIN</span>
-            <input name="vin" />
-          </label>
-          <label>
-            <span>Service</span>
-            <input name="service_needed" />
-          </label>
-          <label>
-            <span>Status</span>
-            <select name="waiting_status">
-              <option value="">Unknown</option>
-              <option value="waiting">Waiting</option>
-              <option value="dropped_off">Dropped off</option>
-            </select>
-          </label>
-          <label>
-            <span>Priority</span>
-            <select name="priority">
-              <option value="">Normal</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
-          </label>
-          <button type="submit">+ Quick Add</button>
-          <p role="status">{quickStatus}</p>
-        </form>
       </section>
 
       <nav className="dashboard-tabs" aria-label="Dashboard views">
@@ -196,6 +174,35 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
           </button>
         ))}
       </nav>
+
+      {tab === 'schedule' && (
+        <>
+          <ScheduleView
+            bookings={data.bookings}
+            appointments={data.appointments}
+            queueItems={todayQueue}
+            mode={scheduleMode}
+            selectedDate={scheduleDate}
+            onModeChange={setScheduleMode}
+            onDateChange={setScheduleDate}
+          />
+          <QuickCapturePanel
+            quickStatus={quickStatus}
+            open={quickCaptureOpen}
+            onToggle={() => setQuickCaptureOpen((open) => !open)}
+            onSubmit={handleQuickCapture}
+          />
+        </>
+      )}
+
+      {tab === 'queue' && (
+        <QuickCapturePanel
+          quickStatus={quickStatus}
+          open={quickCaptureOpen}
+          onToggle={() => setQuickCaptureOpen((open) => !open)}
+          onSubmit={handleQuickCapture}
+        />
+      )}
 
       {tab === 'queue' && (
         <Panel title="Today Queue" subtitle="Bookings and walk-ins the owner needs to handle today.">
@@ -312,6 +319,207 @@ function Panel({ title, subtitle, children }: { title: string; subtitle: string;
         </div>
       </div>
       {children}
+    </section>
+  );
+}
+
+function ScheduleView({
+  bookings,
+  appointments,
+  queueItems,
+  mode,
+  selectedDate,
+  onModeChange,
+  onDateChange
+}: {
+  bookings: DashboardData['bookings'];
+  appointments: DashboardData['appointments'];
+  queueItems: QueueItem[];
+  mode: ScheduleMode;
+  selectedDate: string;
+  onModeChange: (mode: ScheduleMode) => void;
+  onDateChange: (date: string) => void;
+}) {
+  const bookingMap = new Map(bookings.map((booking) => [booking.id, booking]));
+  const dates = mode === 'day' ? [selectedDate] : weekDays(selectedDate);
+  const step = mode === 'day' ? 1 : 7;
+
+  const requestedEntries = bookings
+    .filter((booking) => booking.status === 'requested')
+    .map((booking) => ({
+      id: booking.id,
+      date: booking.preferred_date,
+      time: booking.preferred_time,
+      title: booking.customer_name,
+      body: `${booking.service_needed} · ${booking.vehicle_description}`,
+      tone: 'requested' as const
+    }));
+
+  const confirmedEntries = appointments
+    .filter((appointment) => appointment.status === 'confirmed')
+    .map((appointment) => {
+      const booking = appointment.booking_request_id ? bookingMap.get(appointment.booking_request_id) : null;
+      return {
+        id: appointment.id,
+        date: appointment.appointment_date,
+        time: appointment.appointment_time,
+        title: booking?.customer_name || 'Confirmed job',
+        body: booking ? `${booking.service_needed} · ${booking.vehicle_description}` : 'Appointment confirmed',
+        tone: 'confirmed' as const
+      };
+    });
+
+  const entries = [...requestedEntries, ...confirmedEntries].sort((a, b) => a.time.localeCompare(b.time));
+  const unscheduledWalkIns = queueItems.filter((item) => !item.booking_request_id);
+
+  return (
+    <section className="dashboard-panel schedule-panel">
+      <div className="schedule-header">
+        <div>
+          <p>Calendar</p>
+          <h2>{mode === 'day' ? longDateLabel(selectedDate) : 'This Week'}</h2>
+        </div>
+        <div className="schedule-controls">
+          <button type="button" onClick={() => onDateChange(addDays(selectedDate, -step))}>
+            Prev
+          </button>
+          <button type="button" onClick={() => onDateChange(todayKey())}>
+            Today
+          </button>
+          <button type="button" onClick={() => onDateChange(addDays(selectedDate, step))}>
+            Next
+          </button>
+          <div className="mode-toggle" aria-label="Schedule view">
+            <button type="button" className={mode === 'day' ? 'active' : ''} onClick={() => onModeChange('day')}>
+              Day
+            </button>
+            <button type="button" className={mode === 'week' ? 'active' : ''} onClick={() => onModeChange('week')}>
+              Week
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className={mode === 'day' ? 'schedule-grid day' : 'schedule-grid week'}>
+        {dates.map((date) => {
+          const dayEntries = entries.filter((entry) => entry.date === date);
+          const dayQueue = date === todayKey() ? unscheduledWalkIns : [];
+
+          return (
+            <article className="schedule-day" key={date}>
+              <div className="schedule-day-heading">
+                <strong>{shortDateLabel(date)}</strong>
+                <span>{dayEntries.length + dayQueue.length} jobs</span>
+              </div>
+              {dayEntries.length || dayQueue.length ? (
+                <div className="schedule-events">
+                  {dayEntries.map((entry) => (
+                    <div className={`schedule-event ${entry.tone}`} key={`${entry.tone}-${entry.id}`}>
+                      <span>{entry.time}</span>
+                      <strong>{entry.title}</strong>
+                      <p>{entry.body}</p>
+                    </div>
+                  ))}
+                  {dayQueue.map((item) => (
+                    <div className="schedule-event walk-in" key={item.id}>
+                      <span>Walk-in</span>
+                      <strong>{item.customer_name || item.vehicle_description || item.phone || 'Quick capture'}</strong>
+                      <p>{item.service_needed || item.quick_note}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="schedule-empty">Open day</div>
+              )}
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function QuickCapturePanel({
+  quickStatus,
+  open,
+  onToggle,
+  onSubmit
+}: {
+  quickStatus: string;
+  open: boolean;
+  onToggle: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <section className={`quick-capture-panel ${open ? 'open' : 'closed'}`}>
+      <div className="quick-capture-heading">
+        <div>
+          <p>Fast intake</p>
+          <h2>Quick Capture</h2>
+        </div>
+        <button type="button" onClick={onToggle}>
+          {open ? 'Close' : '+ Quick Add'}
+        </button>
+      </div>
+      {open && (
+        <form className="quick-capture-form" onSubmit={onSubmit}>
+          <label className="wide">
+            <span>Quick note</span>
+            <textarea name="quick_note" placeholder="Say or type: John, 604-555-1234, red Civic, oil change, waiting" required />
+          </label>
+          <details className="quick-details">
+            <summary>Details</summary>
+            <div>
+              <label>
+                <span>Name</span>
+                <input name="customer_name" />
+              </label>
+              <label>
+                <span>Phone</span>
+                <input name="phone" type="tel" />
+              </label>
+              <label>
+                <span>Email</span>
+                <input name="email" type="email" />
+              </label>
+              <label>
+                <span>Vehicle</span>
+                <input name="vehicle_description" />
+              </label>
+              <label>
+                <span>Plate</span>
+                <input name="license_plate" />
+              </label>
+              <label>
+                <span>VIN</span>
+                <input name="vin" />
+              </label>
+              <label>
+                <span>Service</span>
+                <input name="service_needed" />
+              </label>
+              <label>
+                <span>Status</span>
+                <select name="waiting_status">
+                  <option value="">Unknown</option>
+                  <option value="waiting">Waiting</option>
+                  <option value="dropped_off">Dropped off</option>
+                </select>
+              </label>
+              <label>
+                <span>Priority</span>
+                <select name="priority">
+                  <option value="">Normal</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </label>
+            </div>
+          </details>
+          <button type="submit">Save</button>
+          <p role="status">{quickStatus}</p>
+        </form>
+      )}
     </section>
   );
 }
