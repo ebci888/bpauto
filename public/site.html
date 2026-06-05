@@ -494,6 +494,48 @@
       padding: 10px 12px; background: #fff; color: var(--text); border: 1px solid var(--border);
     }
     .assistant-action.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+    .assistant-draft {
+      display: none;
+      margin: 2px 0 10px;
+      padding: 12px;
+      border: 1px solid var(--blue-pale);
+      border-radius: 14px;
+      background: #f8fbff;
+    }
+    .assistant-draft.active { display: block; }
+    .assistant-draft h5 {
+      margin: 0 0 7px;
+      color: var(--text);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 12px;
+      font-weight: 850;
+    }
+    .assistant-draft ul {
+      display: grid;
+      gap: 5px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .assistant-draft li {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .assistant-draft strong { color: var(--text); }
+    .assistant-draft button {
+      width: 100%;
+      min-height: 36px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 9px;
+      color: #fff;
+      background: var(--blue);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 12px;
+      font-weight: 850;
+      cursor: pointer;
+    }
     .assistant-status-line { min-height: 16px; margin-top: 8px; color: var(--muted); font-size: 11px; text-align: center; }
 
     /* ─── ANIMATIONS ─── */
@@ -1161,9 +1203,15 @@
     </div>
     <div class="assistant-messages" id="assistantMessages" aria-live="polite"></div>
     <div class="assistant-quick">
+      <button type="button" onclick="askAssistantQuick('I want to book an appointment through chat.')">Book by chat</button>
       <button type="button" onclick="askAssistantQuick('I hear a brake noise. What should I do?')">Brake noise</button>
       <button type="button" onclick="askAssistantQuick('Can I book an oil change?')">Book oil change</button>
       <button type="button" onclick="askAssistantQuick('Where are you located?')">Location</button>
+    </div>
+    <div class="assistant-draft" id="assistantDraft">
+      <h5>Booking draft</h5>
+      <ul id="assistantDraftList"></ul>
+      <button type="button" onclick="applyAssistantDraft()">Fill Booking Form</button>
     </div>
     <form class="assistant-composer" id="assistantForm">
       <button class="assistant-mic" type="button" id="assistantMic" aria-label="Start voice chat" onclick="startVoiceChat()">🎙</button>
@@ -1450,6 +1498,8 @@
   let recognition = null;
   let isListening = false;
   const assistantMessages = [];
+  let assistantConversationId = null;
+  let assistantBookingDraft = {};
   const assistantPanel = document.getElementById('voicePanel');
   const assistantMessageList = document.getElementById('assistantMessages');
   const assistantForm = document.getElementById('assistantForm');
@@ -1458,6 +1508,8 @@
   const assistantMic = document.getElementById('assistantMic');
   const assistantStatus = document.getElementById('assistantStatus');
   const assistantProvider = document.getElementById('assistantProvider');
+  const assistantDraft = document.getElementById('assistantDraft');
+  const assistantDraftList = document.getElementById('assistantDraftList');
 
   function localAssistantReply(message) {
     const text = message.toLowerCase();
@@ -1486,12 +1538,118 @@
     assistantMessageList.scrollTop = assistantMessageList.scrollHeight;
   }
 
+  function fieldLabel(key) {
+    return {
+      first_name: 'First name',
+      last_name: 'Last name',
+      phone: 'Phone',
+      email: 'Email',
+      vehicle: 'Vehicle',
+      service: 'Service',
+      notes: 'Notes',
+      preferred_date: 'Date',
+      preferred_time: 'Time',
+      urgency: 'Urgency',
+      safety_note: 'Safety note'
+    }[key] || key;
+  }
+
+  function renderAssistantDraft(draft = {}, missing = []) {
+    assistantBookingDraft = { ...assistantBookingDraft, ...draft };
+    const visibleEntries = Object.entries(assistantBookingDraft).filter(([, value]) => String(value || '').trim());
+    if (!assistantDraft || !assistantDraftList || !visibleEntries.length) return;
+
+    assistantDraft.classList.add('active');
+    assistantDraftList.innerHTML = '';
+    visibleEntries
+      .filter(([key]) => !['safety_note'].includes(key))
+      .slice(0, 7)
+      .forEach(([key, value]) => {
+        const item = document.createElement('li');
+        const label = document.createElement('strong');
+        label.textContent = `${fieldLabel(key)}:`;
+        item.append(label, ` ${String(value)}`);
+        assistantDraftList.appendChild(item);
+      });
+    if (assistantBookingDraft.safety_note) {
+      const item = document.createElement('li');
+      const label = document.createElement('strong');
+      label.textContent = 'Safety:';
+      item.append(label, ` ${assistantBookingDraft.safety_note}`);
+      assistantDraftList.appendChild(item);
+    }
+    if (missing?.length) {
+      const item = document.createElement('li');
+      const label = document.createElement('strong');
+      label.textContent = 'Still needed:';
+      item.append(label, ` ${missing.join(', ')}`);
+      assistantDraftList.appendChild(item);
+    }
+  }
+
+  async function applyAssistantDraft() {
+    const draft = assistantBookingDraft || {};
+    const form = bookingForm;
+    if (!form) return;
+
+    const setValue = (name, value) => {
+      const field = form.elements[name];
+      if (field && value) field.value = value;
+    };
+
+    setValue('first_name', draft.first_name);
+    setValue('last_name', draft.last_name);
+    setValue('phone', draft.phone);
+    setValue('email', draft.email);
+    setValue('vehicle', draft.vehicle);
+    setValue('notes', draft.notes);
+
+    if (draft.service && form.elements.service) {
+      const serviceSelect = form.elements.service;
+      const match = Array.from(serviceSelect.options).find((option) =>
+        option.textContent.toLowerCase().includes(String(draft.service).toLowerCase().split(' ')[0])
+      );
+      if (match) serviceSelect.value = match.value || match.textContent;
+      else serviceSelect.value = 'General Inspection';
+    }
+
+    if (draft.preferred_date) {
+      preferredDate.value = draft.preferred_date;
+      await loadAvailableTimes(draft.preferred_date);
+    }
+    if (draft.preferred_time) {
+      preferredTime.value = draft.preferred_time;
+      document.querySelectorAll('.time-slot').forEach((button) => {
+        if (button.textContent.trim().toLowerCase() === String(draft.preferred_time).toLowerCase()) {
+          selectTime(button);
+        }
+      });
+    }
+
+    toggleVoice();
+    document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    bookingStatus.textContent = 'I filled the booking form from the chat. Please review it and choose any missing date or time.';
+    bookingStatus.style.color = '#166534';
+  }
+
+  function preferredAssistantVoice() {
+    if (!('speechSynthesis' in window)) return null;
+    const voices = window.speechSynthesis.getVoices();
+    return (
+      voices.find((voice) => /samantha|jenny|aria|sonia|female|zira|karen/i.test(voice.name)) ||
+      voices.find((voice) => /^en[-_]/i.test(voice.lang)) ||
+      null
+    );
+  }
+
   function speakAssistant(text) {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.98;
     utterance.pitch = 1;
+    const voice = preferredAssistantVoice();
+    if (voice) utterance.voice = voice;
     window.speechSynthesis.speak(utterance);
   }
 
@@ -1509,13 +1667,24 @@
       const response = await fetch('/api/ai-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: cleanMessage, messages: assistantMessages.slice(0, -1) })
+        body: JSON.stringify({
+          message: cleanMessage,
+          messages: assistantMessages.slice(0, -1),
+          conversationId: assistantConversationId,
+          bookingDraft: assistantBookingDraft
+        })
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Assistant unavailable.');
+      assistantConversationId = result.conversationId || assistantConversationId;
       addAssistantMessage('assistant', result.reply);
+      renderAssistantDraft(result.booking_draft, result.missing_fields);
       assistantProvider.textContent = result.provider === 'demo' ? 'Demo mode assistant' : `${result.provider} powered assistant`;
-      assistantStatus.textContent = speak ? 'Reply spoken. You can ask another question.' : 'Ready for the next question.';
+      assistantStatus.textContent = result.should_show_booking_form
+        ? 'Booking draft updated. Review it or keep chatting.'
+        : speak
+          ? 'Reply spoken. You can ask another question.'
+          : 'Ready for the next question.';
       if (speak) speakAssistant(result.reply);
     } catch {
       const reply = localAssistantReply(cleanMessage);

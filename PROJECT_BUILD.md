@@ -218,8 +218,10 @@ Built behavior:
 
 - Bottom-right public site assistant is now a real demo chat surface instead of alert placeholders.
 - Supports typed questions, quick prompts, browser microphone dictation where supported, and spoken assistant replies.
-- Assistant is shop-aware: services, hours, Surrey location, booking-request flow, and basic intake questions.
-- `/api/ai-assistant` uses Gemini first when `GEMINI_API_KEY` is configured, OpenAI second when `OPENAI_API_KEY` is configured, and local demo replies when no provider key is present.
+- Assistant is shop-aware: services, hours, Surrey location, no-start/noise/brake safety triage, towing guidance, booking-request flow, and basic intake questions.
+- `/api/ai-assistant` uses OpenAI first when `OPENAI_API_KEY` is configured, Gemini second when `GEMINI_API_KEY` is configured, and local demo replies when no provider key is present.
+- Assistant turns collect transcript rows in `ai_assistant_conversations` and `ai_assistant_messages`.
+- Assistant extracts a booking draft from chat/voice and can fill the public booking form for customer review.
 - Demo mode is intentionally safe: it does not confirm appointments, diagnose with certainty, or quote exact repair prices.
 
 Demo provider env vars:

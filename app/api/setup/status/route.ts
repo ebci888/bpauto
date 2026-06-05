@@ -20,7 +20,9 @@ const requiredTables = [
   'shop_hours',
   'special_hours',
   'blocked_times',
-  'booking_submission_events'
+  'booking_submission_events',
+  'ai_assistant_conversations',
+  'ai_assistant_messages'
 ];
 
 export async function GET() {
@@ -108,7 +110,8 @@ export async function GET() {
       geminiConfigured,
       openAiConfigured,
       fallbackModeAvailable: true,
-      activeProvider: geminiConfigured ? 'gemini' : openAiConfigured ? 'openai' : 'demo'
+      activeProvider: openAiConfigured ? 'openai' : geminiConfigured ? 'gemini' : 'demo',
+      transcriptStorageEnabled: migrationApplied && existingTables.includes('ai_assistant_conversations')
     },
     nextStep: readyForLogin
       ? 'Create or sign in with the owner account, then test /dashboard.'
