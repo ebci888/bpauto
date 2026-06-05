@@ -798,6 +798,12 @@
       </div>
       <form class="booking-form-box fade-up" id="bookingForm">
         <h3>📅 Request an Appointment</h3>
+        <div style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;" aria-hidden="true">
+          <label>Company<input name="company" type="text" tabindex="-1" autocomplete="off" /></label>
+          <label>Website<input name="website" type="text" tabindex="-1" autocomplete="off" /></label>
+        </div>
+        <input type="hidden" name="booking_started_at" id="bookingStartedAt" />
+        <input type="hidden" name="cf-turnstile-response" id="turnstileResponse" />
         <div class="form-row">
           <div class="form-group"><label>First Name</label><input name="first_name" type="text" placeholder="John" required /></div>
           <div class="form-group"><label>Last Name</label><input name="last_name" type="text" placeholder="Smith" required /></div>
@@ -1141,6 +1147,8 @@
   const preferredDate = document.getElementById('preferredDate');
   const preferredTime = document.getElementById('preferredTime');
   const timeSlots = document.getElementById('timeSlots');
+  const bookingStartedAt = document.getElementById('bookingStartedAt');
+  if (bookingStartedAt) bookingStartedAt.value = String(Date.now());
   let monthAvailabilityKey = '';
   let monthAvailabilityLoadingKey = '';
   let monthAvailability = {};
@@ -1268,6 +1276,7 @@
       return;
     }
     const submitButton = bookingForm.querySelector('button[type="submit"]');
+    if (bookingStartedAt && !bookingStartedAt.value) bookingStartedAt.value = String(Date.now());
     const payload = Object.fromEntries(new FormData(bookingForm).entries());
     submitButton.disabled = true;
     submitButton.textContent = 'Sending...';
@@ -1287,6 +1296,7 @@
       bookingStatus.textContent = `Thanks ${payload.first_name}. We received your request for ${payload.preferred_date} at ${payload.preferred_time}. Request #${result.booking.reference}.`;
       bookingStatus.style.color = '#166534';
       bookingForm.reset();
+      if (bookingStartedAt) bookingStartedAt.value = String(Date.now());
       preferredDate.value = '';
       preferredTime.value = '';
       selDay = null;

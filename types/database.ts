@@ -5,6 +5,7 @@ export type QueueStatus = 'waiting' | 'dropped_off' | '';
 export type Priority = 'urgent' | 'high' | '';
 export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped';
 export type JobStatus = 'scheduled' | 'checked_in' | 'in_progress' | 'waiting_parts' | 'paused' | 'ready' | 'completed';
+export type SpamStatus = 'clean' | 'suspected' | 'blocked';
 
 export type DashboardData = {
   bookings: BookingRequest[];
@@ -33,6 +34,11 @@ export type BookingRequest = {
   preferred_date: string;
   preferred_time: string;
   notes: string | null;
+  spam_status: SpamStatus;
+  spam_score: number;
+  spam_reasons: string[];
+  submitted_ip_hash: string | null;
+  turnstile_verified: boolean;
   created_at: string;
   updated_at: string;
 };

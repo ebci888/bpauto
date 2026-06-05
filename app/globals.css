@@ -922,6 +922,13 @@ a {
   gap: 12px;
 }
 
+.status-stack {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .record-card h3 {
   font-size: 15px;
 }
@@ -958,6 +965,16 @@ a {
 }
 
 .status.cancelled {
+  color: var(--dashboard-red);
+  background: #fee2e2;
+}
+
+.status.spam-suspected {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.status.spam-blocked {
   color: var(--dashboard-red);
   background: #fee2e2;
 }
@@ -1089,6 +1106,10 @@ a {
   .notification-test-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .status-stack {
+    align-items: flex-start;
   }
 
   .dashboard-header h1 {

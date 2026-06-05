@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
 import { createNotification } from '@/lib/notifications';
+import { assessBookingSpam, logBookingSubmission, type BookingSpamContext } from '@/lib/spam-shield';
 import { clean, missingFields, normalizePhone, referenceCode, todayKey, upperClean } from '@/lib/text';
 
 const hoursSchema = z.preprocess(
@@ -17,7 +18,11 @@ export const bookingRequestSchema = z.object({
   service: z.string().trim().min(1),
   preferred_date: z.string().trim().min(1),
   preferred_time: z.string().trim().min(1),
-  notes: z.string().optional().default('')
+  notes: z.string().optional().default(''),
+  booking_started_at: z.string().optional().default(''),
+  company: z.string().optional().default(''),
+  website: z.string().optional().default(''),
+  'cf-turnstile-response': z.string().optional().default('')
 });
 
 export const quickCaptureSchema = z.object({
@@ -78,6 +83,12 @@ export const specialHourSchema = shopHourSchema.extend({
 
 const jobStatuses = new Set(['scheduled', 'checked_in', 'in_progress', 'waiting_parts', 'paused', 'ready', 'completed']);
 const shopTimeZone = 'America/Vancouver';
+
+export class BookingSpamBlockedError extends Error {
+  constructor() {
+    super('Booking request blocked by spam protection.');
+  }
+}
 
 function minutesFromTime(value: string) {
   const cleaned = clean(value);
@@ -286,7 +297,7 @@ export async function getAvailableSlots(date: string) {
       admin.from('special_hours').select('*').eq('special_date', date).maybeSingle(),
       admin.from('blocked_times').select('*').eq('block_date', date),
       admin.from('appointments').select('appointment_time').eq('appointment_date', date).eq('status', 'confirmed'),
-      admin.from('booking_requests').select('preferred_time').eq('preferred_date', date).eq('status', 'requested')
+      admin.from('booking_requests').select('preferred_time').eq('preferred_date', date).eq('status', 'requested').eq('spam_status', 'clean')
     ]);
 
   if (hoursError) throw hoursError;
@@ -398,7 +409,7 @@ export async function deleteSpecialHour(id: string) {
   return { ok: true };
 }
 
-export async function createWebsiteBooking(raw: unknown) {
+export async function createWebsiteBooking(raw: unknown, context: BookingSpamContext = {}) {
   const input = bookingRequestSchema.parse(raw);
   const admin = getSupabaseAdmin();
   const slots = await getAvailableSlots(input.preferred_date);
@@ -406,18 +417,29 @@ export async function createWebsiteBooking(raw: unknown) {
     throw new Error('That time is no longer available. Please choose another time.');
   }
 
+  const spam = await assessBookingSpam(input, context);
+  if (spam.status === 'blocked') {
+    await logBookingSubmission(spam);
+    throw new BookingSpamBlockedError();
+  }
+
   const customerName = `${input.first_name} ${input.last_name}`;
   const normalizedPhone = normalizePhone(input.phone);
-  const customer = await touchCustomer({
-    firstName: input.first_name,
-    lastName: input.last_name,
-    phone: input.phone,
-    email: input.email
-  });
-  const vehicle = await touchVehicle({
-    customerId: customer?.id,
-    description: input.vehicle
-  });
+  const quietReview = spam.status === 'suspected';
+  const customer = quietReview
+    ? null
+    : await touchCustomer({
+        firstName: input.first_name,
+        lastName: input.last_name,
+        phone: input.phone,
+        email: input.email
+      });
+  const vehicle = quietReview
+    ? null
+    : await touchVehicle({
+        customerId: customer?.id,
+        description: input.vehicle
+      });
 
   const { data: booking, error: bookingError } = await admin
     .from('booking_requests')
@@ -433,11 +455,22 @@ export async function createWebsiteBooking(raw: unknown) {
       service_needed: input.service,
       preferred_date: input.preferred_date,
       preferred_time: input.preferred_time,
-      notes: input.notes || null
+      notes: input.notes || null,
+      spam_status: spam.status,
+      spam_score: spam.score,
+      spam_reasons: spam.reasons,
+      submitted_ip_hash: spam.ipHash,
+      turnstile_verified: spam.turnstileVerified
     })
     .select('*')
     .single();
   if (bookingError) throw bookingError;
+
+  await logBookingSubmission(spam, booking.id);
+
+  if (quietReview) {
+    return { booking, queueItem: null, customer: null, vehicle: null, spam };
+  }
 
   const queueBase = {
     customer_name: customerName,

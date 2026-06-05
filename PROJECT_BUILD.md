@@ -192,6 +192,25 @@ Future provider wiring:
 - Twilio for SMS.
 - Twilio inbound webhook for customer SMS replies.
 
+## Booking Spam Shield
+
+Built behavior:
+
+- Public booking submissions are scored before customer, vehicle, queue, or notification side effects.
+- Obvious bot submissions are blocked and logged in `booking_submission_events`.
+- Suspicious submissions are saved as booking requests with `spam_status = suspected`, but do not create customer/vehicle/queue records and do not alert the owner.
+- Clean submissions keep the normal flow: customer, vehicle, booking request, queue item, owner alert, and customer confirmation logs.
+- Public availability ignores suspected spam bookings, so spam cannot quietly fill the public calendar.
+- The public booking form includes hidden honeypot fields and a form timing signal.
+- Turnstile server verification is supported when `TURNSTILE_SECRET_KEY` is configured. Set `TURNSTILE_REQUIRED=true` only after the widget is added to the public form.
+- IP/user-agent/email/phone fingerprints are hashed before storage; raw IP addresses are not stored.
+
+Future hardening:
+
+- Add visible/invisible Cloudflare Turnstile widget once `TURNSTILE_SITE_KEY` is available.
+- Add a dashboard spam filter/release action for suspected bookings.
+- Add Netlify edge/function rate limits in production.
+
 ## Demo Scope
 
 The demo should feel complete around this workflow:

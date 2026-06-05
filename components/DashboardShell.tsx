@@ -542,7 +542,10 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
                         {booking.service_needed} for {booking.vehicle_description}
                       </p>
                     </div>
-                    <span className={`status ${booking.status}`}>{booking.status}</span>
+                    <div className="status-stack">
+                      <span className={`status ${booking.status}`}>{booking.status}</span>
+                      {booking.spam_status !== 'clean' && <span className={`status spam-${booking.spam_status}`}>{booking.spam_status}</span>}
+                    </div>
                   </div>
                   <div className="meta-row">
                     <span>{booking.phone}</span>
@@ -551,6 +554,14 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
                       Requested {booking.preferred_date} at {booking.preferred_time}
                     </span>
                   </div>
+                  {booking.spam_status !== 'clean' && (
+                    <div className="missing-row">
+                      <span>Spam score {booking.spam_score}</span>
+                      {(booking.spam_reasons || []).slice(0, 3).map((reason) => (
+                        <span key={reason}>{reason}</span>
+                      ))}
+                    </div>
+                  )}
                   {booking.status === 'requested' && (
                     <div className="record-actions">
                       <button type="button" onClick={() => openBookingConfirm(booking)}>

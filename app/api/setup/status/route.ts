@@ -19,7 +19,8 @@ const requiredTables = [
   'audit_events',
   'shop_hours',
   'special_hours',
-  'blocked_times'
+  'blocked_times',
+  'booking_submission_events'
 ];
 
 export async function GET() {
