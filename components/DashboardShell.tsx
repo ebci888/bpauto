@@ -113,6 +113,7 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null);
   const [bookingConfirmStatus, setBookingConfirmStatus] = useState('');
   const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [selectedShopHour, setSelectedShopHour] = useState<ShopHour | null>(null);
   const [availabilityStatus, setAvailabilityStatus] = useState('');
 
   const todayQueue = useMemo(() => data.queueItems.filter((item) => item.queue_date === todayKey()), [data.queueItems]);
@@ -144,6 +145,16 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
 
   function closeBlockModal() {
     setBlockModalOpen(false);
+  }
+
+  function openShopHourModal(hour: ShopHour) {
+    setAvailabilityStatus('');
+    setSelectedShopHour(hour);
+  }
+
+  function closeShopHourModal() {
+    setSelectedShopHour(null);
+    setAvailabilityStatus('');
   }
 
   function openBookingConfirm(booking: BookingRequest) {
@@ -275,6 +286,33 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
     await refresh();
   }
 
+  async function updateShopHours(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedShopHour) return;
+    setAvailabilityStatus('Saving...');
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+    const payload = {
+      is_open: formData.get('is_open') === 'on',
+      opens_at: String(formData.get('opens_at') || ''),
+      closes_at: String(formData.get('closes_at') || ''),
+      slot_interval_minutes: String(formData.get('slot_interval_minutes') || '60')
+    };
+    const response = await fetch(`/api/availability/hours/${selectedShopHour.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (response.ok) {
+      setAvailabilityStatus('Shop hours saved.');
+      setSelectedShopHour(null);
+      await refresh();
+    } else {
+      const result = await response.json().catch(() => ({}));
+      setAvailabilityStatus(result.error || 'Could not save shop hours.');
+    }
+  }
+
   return (
     <main className="dashboard-page">
       <header className="dashboard-header">
@@ -348,9 +386,13 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
           shopHours={data.shopHours}
           blockedTimes={data.blockedTimes}
           modalOpen={blockModalOpen}
+          selectedShopHour={selectedShopHour}
           status={availabilityStatus}
           onOpen={openBlockModal}
           onClose={closeBlockModal}
+          onEditHour={openShopHourModal}
+          onCloseHour={closeShopHourModal}
+          onSubmitHour={updateShopHours}
           onSubmit={addBlockedTime}
           onDelete={removeBlockedTime}
         />
@@ -828,18 +870,26 @@ function AvailabilityPanel({
   shopHours,
   blockedTimes,
   modalOpen,
+  selectedShopHour,
   status,
   onOpen,
   onClose,
+  onEditHour,
+  onCloseHour,
+  onSubmitHour,
   onSubmit,
   onDelete
 }: {
   shopHours: ShopHour[];
   blockedTimes: BlockedTime[];
   modalOpen: boolean;
+  selectedShopHour: ShopHour | null;
   status: string;
   onOpen: () => void;
   onClose: () => void;
+  onEditHour: (hour: ShopHour) => void;
+  onCloseHour: () => void;
+  onSubmitHour: (event: React.FormEvent<HTMLFormElement>) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onDelete: (id: string) => void;
 }) {
@@ -859,6 +909,9 @@ function AvailabilityPanel({
           <article key={hour.id}>
             <strong>{weekdayNames[hour.day_of_week]}</strong>
             <span>{hour.is_open ? `${hour.opens_at?.slice(0, 5)}-${hour.closes_at?.slice(0, 5)}` : 'Closed'}</span>
+            <button type="button" onClick={() => onEditHour(hour)}>
+              Edit
+            </button>
           </article>
         ))}
       </div>
@@ -920,6 +973,53 @@ function AvailabilityPanel({
               <div className="job-modal-actions">
                 <button type="submit">Save Block</button>
                 <button type="button" onClick={onClose}>
+                  Cancel
+                </button>
+              </div>
+              <p role="status">{status}</p>
+            </form>
+          </section>
+        </div>
+      )}
+      {selectedShopHour && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={onCloseHour}>
+          <section className="job-modal availability-modal" role="dialog" aria-modal="true" aria-labelledby="shop-hours-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="job-modal-header">
+              <div>
+                <p>Regular hours</p>
+                <h3 id="shop-hours-modal-title">{weekdayNames[selectedShopHour.day_of_week]}</h3>
+                <span>These hours control what public booking slots can appear on this weekday.</span>
+              </div>
+              <button type="button" aria-label="Close shop hours modal" onClick={onCloseHour}>
+                Close
+              </button>
+            </div>
+            <form className="job-modal-form" onSubmit={onSubmitHour}>
+              <label className="notify-toggle">
+                <input name="is_open" type="checkbox" defaultChecked={selectedShopHour.is_open} />
+                <span>Open this day</span>
+              </label>
+              <label>
+                <span>Opens</span>
+                <input name="opens_at" type="time" defaultValue={selectedShopHour.opens_at?.slice(0, 5) || '08:00'} />
+              </label>
+              <label>
+                <span>Closes</span>
+                <input name="closes_at" type="time" defaultValue={selectedShopHour.closes_at?.slice(0, 5) || '17:00'} />
+              </label>
+              <label>
+                <span>Slot interval</span>
+                <select name="slot_interval_minutes" defaultValue={selectedShopHour.slot_interval_minutes}>
+                  <option value="30">30 minutes</option>
+                  <option value="45">45 minutes</option>
+                  <option value="60">60 minutes</option>
+                  <option value="90">90 minutes</option>
+                  <option value="120">120 minutes</option>
+                </select>
+              </label>
+              <div className="job-modal-actions">
+                <button type="submit">Save Hours</button>
+                <button type="button" onClick={onCloseHour}>
                   Cancel
                 </button>
               </div>

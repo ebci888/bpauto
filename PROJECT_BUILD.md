@@ -111,17 +111,11 @@ Current appointment actions:
   - billable hours
   - internal notes
 
-Future availability behavior:
-
-- Owner defines regular shop hours.
-- Owner blocks unavailable times from the dashboard.
-- Public booking only offers available request slots.
-- Confirmed appointments remove that slot from public availability.
-- Owner can still override or reschedule from the dashboard when shop reality changes.
-
 Built availability behavior:
 
 - Default shop hours are seeded in Supabase.
+- Owner can edit regular shop hours from the Availability tab.
+- Owner can mark a weekday closed or adjust open/close times and slot intervals.
 - Public booking time slots are loaded from `/api/availability`.
 - Slots are removed when there is:
   - an owner blocked-time record
@@ -130,6 +124,11 @@ Built availability behavior:
 - Same-day slots are removed once that time has already passed in Vancouver time.
 - Public booking submit validates the selected slot server-side before creating records.
 - Dashboard has an Availability tab where the owner can add or remove blocked time.
+
+Future availability behavior:
+
+- Owner can override or reschedule from the dashboard when shop reality changes.
+- Add holiday/special-date hours separate from regular weekday hours.
 
 ### Booking Requests
 

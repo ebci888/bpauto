@@ -62,6 +62,15 @@ export const blockedTimeSchema = z.object({
   reason: z.string().optional().default('')
 });
 
+export const shopHourSchema = z.object({
+  is_open: z.coerce.boolean().optional().default(false),
+  opens_at: z.string().optional().default(''),
+  closes_at: z.string().optional().default(''),
+  slot_interval_minutes: z.coerce.number().int().refine((value) => [30, 45, 60, 90, 120].includes(value), {
+    message: 'Slot interval must be 30, 45, 60, 90, or 120 minutes.'
+  })
+});
+
 const jobStatuses = new Set(['scheduled', 'checked_in', 'in_progress', 'waiting_parts', 'paused', 'ready', 'completed']);
 const shopTimeZone = 'America/Vancouver';
 
@@ -307,6 +316,34 @@ export async function deleteBlockedTime(id: string) {
   const { error } = await admin.from('blocked_times').delete().eq('id', id);
   if (error) throw error;
   return { ok: true };
+}
+
+export async function updateShopHour(id: string, raw: unknown) {
+  const input = shopHourSchema.parse(raw);
+  const admin = getSupabaseAdmin();
+  const opensAt = input.is_open ? clean(input.opens_at) : null;
+  const closesAt = input.is_open ? clean(input.closes_at) : null;
+
+  if (input.is_open && (!opensAt || !closesAt)) {
+    throw new Error('Open days need opening and closing times.');
+  }
+  if (input.is_open && minutesFromTime(opensAt || '') >= minutesFromTime(closesAt || '')) {
+    throw new Error('Closing time must be after opening time.');
+  }
+
+  const { data, error } = await admin
+    .from('shop_hours')
+    .update({
+      is_open: input.is_open,
+      opens_at: opensAt,
+      closes_at: closesAt,
+      slot_interval_minutes: input.slot_interval_minutes
+    })
+    .eq('id', id)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 export async function createWebsiteBooking(raw: unknown) {
