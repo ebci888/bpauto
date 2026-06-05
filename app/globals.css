@@ -136,6 +136,8 @@ a {
 .quick-capture-form button,
 .quick-capture-actions button,
 .job-modal-actions button,
+.availability-toolbar button,
+.plain-danger,
 .confirm-form button,
 .record-actions button,
 .dashboard-tabs button {
@@ -523,6 +525,10 @@ a {
   width: min(700px, 100%);
 }
 
+.availability-modal {
+  width: min(640px, 100%);
+}
+
 .job-modal-header {
   display: flex;
   align-items: flex-start;
@@ -729,11 +735,84 @@ a {
   background: var(--dashboard-blue);
 }
 
+.availability-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px;
+  border-bottom: 1px solid var(--dashboard-line);
+}
+
+.availability-toolbar h3,
+.availability-section h3 {
+  font-size: 16px;
+}
+
+.availability-toolbar p {
+  margin: 5px 0 0;
+  color: var(--dashboard-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.availability-toolbar button {
+  min-height: 42px;
+  padding: 0 14px;
+  color: #fff;
+  background: var(--dashboard-blue);
+}
+
+.availability-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(110px, 1fr));
+  gap: 8px;
+  padding: 18px;
+  overflow-x: auto;
+}
+
+.availability-grid article {
+  min-height: 76px;
+  border: 1px solid var(--dashboard-line);
+  border-radius: 10px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.availability-grid strong,
+.availability-grid span {
+  display: block;
+}
+
+.availability-grid strong {
+  font-size: 13px;
+}
+
+.availability-grid span {
+  margin-top: 8px;
+  color: var(--dashboard-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.availability-section {
+  border-top: 1px solid var(--dashboard-line);
+  padding-top: 18px;
+}
+
+.availability-section > h3 {
+  padding: 0 18px;
+}
+
 .record-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 18px;
+}
+
+.record-list.compact {
+  padding-top: 12px;
 }
 
 .record-card {
@@ -832,6 +911,14 @@ a {
   background: var(--dashboard-blue);
 }
 
+.plain-danger {
+  min-height: 36px;
+  padding: 0 12px;
+  color: var(--dashboard-red);
+  background: #fff;
+  border: 1px solid #fecaca;
+}
+
 .empty-state {
   margin: 18px;
   padding: 36px;
@@ -860,6 +947,7 @@ a {
   }
 
   .schedule-header,
+  .availability-toolbar,
   .quick-capture-heading {
     align-items: stretch;
     flex-direction: column;
@@ -901,7 +989,8 @@ a {
 
   .schedule-controls button,
   .mode-toggle,
-  .quick-capture-heading button {
+  .quick-capture-heading button,
+  .availability-toolbar button {
     width: 100%;
   }
 

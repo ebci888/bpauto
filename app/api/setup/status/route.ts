@@ -15,7 +15,9 @@ const requiredTables = [
   'queue_items',
   'appointments',
   'notification_events',
-  'audit_events'
+  'audit_events',
+  'shop_hours',
+  'blocked_times'
 ];
 
 export async function GET() {

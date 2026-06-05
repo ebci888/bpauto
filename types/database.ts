@@ -13,6 +13,8 @@ export type DashboardData = {
   queueItems: QueueItem[];
   appointments: Appointment[];
   notifications: NotificationEvent[];
+  shopHours: ShopHour[];
+  blockedTimes: BlockedTime[];
 };
 
 export type BookingRequest = {
@@ -113,4 +115,26 @@ export type NotificationEvent = {
   error: string | null;
   sent_at: string | null;
   created_at: string;
+};
+
+export type ShopHour = {
+  id: string;
+  day_of_week: number;
+  is_open: boolean;
+  opens_at: string | null;
+  closes_at: string | null;
+  slot_interval_minutes: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type BlockedTime = {
+  id: string;
+  block_date: string;
+  start_time: string;
+  end_time: string;
+  reason: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
 };

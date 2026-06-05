@@ -226,8 +226,11 @@
     .cal-day:hover { background: var(--blue-light); color: var(--blue); }
     .cal-day.active { background: var(--blue); color: #fff; font-weight: 700; }
     .cal-day.empty { cursor: default; }
+    .cal-day.disabled { opacity: 0.35; cursor: not-allowed; }
+    .cal-day.disabled:hover { background: transparent; color: var(--text); }
     .cal-day.today { border: 1.5px solid var(--blue); color: var(--blue); }
     .time-slots { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
+    .time-slots-note { color: var(--muted); font-size: 12px; line-height: 1.45; }
     .time-slot {
       padding: 7px 12px; border-radius: 6px; border: 1.5px solid var(--border);
       color: var(--text); font-size: 12px; cursor: pointer; transition: all 0.15s;
@@ -821,15 +824,8 @@
         </div>
         <input type="hidden" name="preferred_date" id="preferredDate" required />
         <label style="font-size:12px;font-weight:700;color:var(--charcoal-2);font-family:'Montserrat',sans-serif;text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px;">Available Times</label>
-        <div class="time-slots">
-          <button class="time-slot" type="button" onclick="selectTime(this)">8:00 AM</button>
-          <button class="time-slot" type="button" onclick="selectTime(this)">9:00 AM</button>
-          <button class="time-slot unavail" disabled>10:00 AM</button>
-          <button class="time-slot" type="button" onclick="selectTime(this)">11:00 AM</button>
-          <button class="time-slot unavail" disabled>1:00 PM</button>
-          <button class="time-slot" type="button" onclick="selectTime(this)">2:00 PM</button>
-          <button class="time-slot" type="button" onclick="selectTime(this)">3:00 PM</button>
-          <button class="time-slot" type="button" onclick="selectTime(this)">4:00 PM</button>
+        <div class="time-slots" id="timeSlots">
+          <span class="time-slots-note">Choose a date to see available request times.</span>
         </div>
         <input type="hidden" name="preferred_time" id="preferredTime" required />
         <div class="form-group"><label>Notes (optional)</label><textarea name="notes" placeholder="Describe symptoms or any extra details about your vehicle…"></textarea></div>
@@ -1135,6 +1131,41 @@
   const bookingStatus = document.getElementById('bookingStatus');
   const preferredDate = document.getElementById('preferredDate');
   const preferredTime = document.getElementById('preferredTime');
+  const timeSlots = document.getElementById('timeSlots');
+
+  function setTimeSlotsMessage(message, color = 'var(--muted)') {
+    timeSlots.innerHTML = '';
+    const el = document.createElement('span');
+    el.className = 'time-slots-note';
+    el.style.color = color;
+    el.textContent = message;
+    timeSlots.appendChild(el);
+  }
+
+  async function loadAvailableTimes(date) {
+    preferredTime.value = '';
+    setTimeSlotsMessage('Loading available times...');
+    try {
+      const response = await fetch(`/api/availability?date=${encodeURIComponent(date)}`);
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not load times.');
+      timeSlots.innerHTML = '';
+      if (!result.slots?.length) {
+        setTimeSlotsMessage('No public request times are available for this day. Please choose another date or call the shop.');
+        return;
+      }
+      result.slots.forEach((slot) => {
+        const button = document.createElement('button');
+        button.className = 'time-slot';
+        button.type = 'button';
+        button.textContent = slot;
+        button.onclick = () => selectTime(button);
+        timeSlots.appendChild(button);
+      });
+    } catch {
+      setTimeSlotsMessage('Could not load available times. Please call the shop at 604-590-2788.', '#dc2626');
+    }
+  }
 
   function renderCal() {
     document.getElementById('cal-month-label').textContent = MONTHS[cMonth] + ' ' + cYear;
@@ -1152,12 +1183,14 @@
     for (let d = 1; d <= daysIn; d++) {
       const el = document.createElement('div');
       const isSun = new Date(cYear, cMonth, d).getDay() === 0;
+      const isPast = new Date(cYear, cMonth, d) < new Date(t.getFullYear(), t.getMonth(), t.getDate());
       const isToday = d === t.getDate() && cMonth === t.getMonth() && cYear === t.getFullYear();
-      el.className = 'cal-day' + (isToday ? ' today' : '') + (d === selDay ? ' active' : '');
+      el.className = 'cal-day' + (isToday ? ' today' : '') + (d === selDay ? ' active' : '') + (isSun || isPast ? ' disabled' : '');
       el.textContent = d;
-      if (isSun) el.style.opacity = '0.3'; else el.onclick = () => {
+      if (!isSun && !isPast) el.onclick = () => {
         selDay = d;
         preferredDate.value = `${cYear}-${String(cMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        loadAvailableTimes(preferredDate.value);
         renderCal();
       };
       grid.appendChild(el);
@@ -1204,7 +1237,7 @@
       preferredDate.value = '';
       preferredTime.value = '';
       selDay = null;
-      document.querySelectorAll('.time-slot.active').forEach(b => b.classList.remove('active'));
+      setTimeSlotsMessage('Choose a date to see available request times.');
       renderCal();
     } catch {
       bookingStatus.textContent = 'Something went wrong sending the request. Please call the shop at 604-590-2788.';

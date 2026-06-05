@@ -5,8 +5,7 @@
 - Let the owner click schedule cards to confirm or reschedule.
 - Let the owner drag cards in week/month view, then confirm the new day/time.
 - Log customer notification intent for confirmation and reschedule changes.
-- Add shop hours and blocked-time availability management.
-- Generate public booking slots from shop hours minus blocked times and confirmed appointments.
+- Add shop-hours editing UI for the owner.
 - Let the owner override a requested slot from the dashboard when needed.
 - Add multi-day jobs for repairs that stay in the shop.
 - Add mechanic assignment.
@@ -16,6 +15,7 @@
 
 - Keep public booking request-first until owner confirms.
 - Verify each form field creates the correct customer, vehicle, booking request, queue item, and notification log rows.
+- Keep public availability generated from shop hours, blocked times, requested bookings, and confirmed appointments.
 - Later, send request-received email/SMS once Brevo/Twilio are configured.
 
 ## Responsive QA

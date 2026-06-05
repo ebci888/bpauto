@@ -61,6 +61,8 @@ Tables created:
 - `appointments`
 - `notification_events`
 - `audit_events`
+- `shop_hours`
+- `blocked_times`
 
 RLS is enabled. The browser does not directly manage shop data. Server routes use the Supabase service role key.
 
@@ -116,6 +118,17 @@ Future availability behavior:
 - Public booking only offers available request slots.
 - Confirmed appointments remove that slot from public availability.
 - Owner can still override or reschedule from the dashboard when shop reality changes.
+
+Built availability behavior:
+
+- Default shop hours are seeded in Supabase.
+- Public booking time slots are loaded from `/api/availability`.
+- Slots are removed when there is:
+  - an owner blocked-time record
+  - a confirmed appointment
+  - an existing requested booking for the same date/time
+- Public booking submit validates the selected slot server-side before creating records.
+- Dashboard has an Availability tab where the owner can add or remove blocked time.
 
 ### Booking Requests
 

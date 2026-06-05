@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import type { DashboardData, BookingRequest, QueueItem } from '@/types/database';
+import type { BlockedTime, DashboardData, BookingRequest, QueueItem, ShopHour } from '@/types/database';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
 type Props = {
@@ -10,7 +10,7 @@ type Props = {
   staffRole: string;
 };
 
-type Tab = 'schedule' | 'queue' | 'bookings' | 'customers' | 'vehicles' | 'cleanup' | 'notifications';
+type Tab = 'schedule' | 'availability' | 'queue' | 'bookings' | 'customers' | 'vehicles' | 'cleanup' | 'notifications';
 type ScheduleMode = 'day' | 'week' | 'month';
 type ScheduleEntry = {
   id: string;
@@ -30,6 +30,7 @@ type ScheduleEntry = {
 
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'schedule', label: 'Schedule' },
+  { id: 'availability', label: 'Availability' },
   { id: 'queue', label: 'Today Queue' },
   { id: 'bookings', label: 'Booking Requests' },
   { id: 'customers', label: 'Customers' },
@@ -99,6 +100,8 @@ function scheduleTitle(mode: ScheduleMode, key: string) {
   return monthLabel(key);
 }
 
+const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   const [data, setData] = useState(initialData);
   const [tab, setTab] = useState<Tab>('schedule');
@@ -107,6 +110,8 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   const [quickCaptureOpen, setQuickCaptureOpen] = useState(false);
   const [quickStatus, setQuickStatus] = useState('');
   const [confirming, setConfirming] = useState<string | null>(null);
+  const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [availabilityStatus, setAvailabilityStatus] = useState('');
 
   const todayQueue = useMemo(() => data.queueItems.filter((item) => item.queue_date === todayKey()), [data.queueItems]);
   const incomplete = useMemo(() => data.queueItems.filter((item) => item.is_incomplete), [data.queueItems]);
@@ -128,6 +133,15 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
 
   function closeQuickCapture() {
     setQuickCaptureOpen(false);
+  }
+
+  function openBlockModal() {
+    setAvailabilityStatus('');
+    setBlockModalOpen(true);
+  }
+
+  function closeBlockModal() {
+    setBlockModalOpen(false);
   }
 
   async function signOut() {
@@ -204,6 +218,37 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
     setConfirming(null);
   }
 
+  async function addBlockedTime(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAvailabilityStatus('Saving...');
+    const form = event.currentTarget;
+    const payload = Object.fromEntries(new FormData(form).entries());
+    const response = await fetch('/api/availability/blocks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (response.ok) {
+      form.reset();
+      setAvailabilityStatus('Blocked time saved.');
+      setBlockModalOpen(false);
+      await refresh();
+    } else {
+      const result = await response.json().catch(() => ({}));
+      setAvailabilityStatus(result.error || 'Could not block time.');
+    }
+  }
+
+  async function removeBlockedTime(id: string) {
+    const response = await fetch(`/api/availability/blocks/${id}`, { method: 'DELETE' });
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      alert(result.error || 'Could not remove blocked time.');
+      return;
+    }
+    await refresh();
+  }
+
   return (
     <main className="dashboard-page">
       <header className="dashboard-header">
@@ -269,6 +314,19 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
           onOpen={openQuickCapture}
           onClose={closeQuickCapture}
           onSubmit={handleQuickCapture}
+        />
+      )}
+
+      {tab === 'availability' && (
+        <AvailabilityPanel
+          shopHours={data.shopHours}
+          blockedTimes={data.blockedTimes}
+          modalOpen={blockModalOpen}
+          status={availabilityStatus}
+          onOpen={openBlockModal}
+          onClose={closeBlockModal}
+          onSubmit={addBlockedTime}
+          onDelete={removeBlockedTime}
         />
       )}
 
@@ -668,6 +726,114 @@ function ScheduleView({
         </div>
       )}
     </section>
+  );
+}
+
+function AvailabilityPanel({
+  shopHours,
+  blockedTimes,
+  modalOpen,
+  status,
+  onOpen,
+  onClose,
+  onSubmit,
+  onDelete
+}: {
+  shopHours: ShopHour[];
+  blockedTimes: BlockedTime[];
+  modalOpen: boolean;
+  status: string;
+  onOpen: () => void;
+  onClose: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <Panel title="Availability" subtitle="Public booking slots come from shop hours minus confirmed appointments and blocked time.">
+      <div className="availability-toolbar">
+        <div>
+          <h3>Shop Hours</h3>
+          <p>Default hours are used for public booking slots.</p>
+        </div>
+        <button type="button" onClick={onOpen}>
+          Block Time
+        </button>
+      </div>
+      <div className="availability-grid">
+        {shopHours.map((hour) => (
+          <article key={hour.id}>
+            <strong>{weekdayNames[hour.day_of_week]}</strong>
+            <span>{hour.is_open ? `${hour.opens_at?.slice(0, 5)}-${hour.closes_at?.slice(0, 5)}` : 'Closed'}</span>
+          </article>
+        ))}
+      </div>
+      <div className="availability-section">
+        <h3>Blocked Time</h3>
+        {blockedTimes.length ? (
+          <div className="record-list compact">
+            {blockedTimes.map((block) => (
+              <article className="record-card" key={block.id}>
+                <div className="record-top">
+                  <div>
+                    <h3>{block.block_date}</h3>
+                    <p>
+                      {block.start_time.slice(0, 5)}-{block.end_time.slice(0, 5)}
+                      {block.reason ? ` · ${block.reason}` : ''}
+                    </p>
+                  </div>
+                  <button type="button" className="plain-danger" onClick={() => onDelete(block.id)}>
+                    Remove
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <EmptyState text="No blocked time yet." />
+        )}
+      </div>
+      {modalOpen && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+          <section className="job-modal availability-modal" role="dialog" aria-modal="true" aria-labelledby="availability-modal-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="job-modal-header">
+              <div>
+                <p>Availability</p>
+                <h3 id="availability-modal-title">Block Time</h3>
+                <span>Hide time from public booking when the shop is full, closed, waiting on parts, or the owner is unavailable.</span>
+              </div>
+              <button type="button" aria-label="Close availability modal" onClick={onClose}>
+                Close
+              </button>
+            </div>
+            <form className="job-modal-form" onSubmit={onSubmit}>
+              <label>
+                <span>Date</span>
+                <input name="block_date" type="date" defaultValue={todayKey()} required />
+              </label>
+              <label>
+                <span>Start</span>
+                <input name="start_time" type="time" defaultValue="12:00" required />
+              </label>
+              <label>
+                <span>End</span>
+                <input name="end_time" type="time" defaultValue="13:00" required />
+              </label>
+              <label className="wide-field">
+                <span>Reason</span>
+                <textarea name="reason" placeholder="Lunch, parts run, fully booked, owner away..." />
+              </label>
+              <div className="job-modal-actions">
+                <button type="submit">Save Block</button>
+                <button type="button" onClick={onClose}>
+                  Cancel
+                </button>
+              </div>
+              <p role="status">{status}</p>
+            </form>
+          </section>
+        </div>
+      )}
+    </Panel>
   );
 }
 

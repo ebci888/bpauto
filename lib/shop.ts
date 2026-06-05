@@ -55,7 +55,50 @@ export const rescheduleAppointmentSchema = z.object({
   notify_customer: z.coerce.boolean().optional().default(true)
 });
 
+export const blockedTimeSchema = z.object({
+  block_date: z.string().trim().min(1),
+  start_time: z.string().trim().min(1),
+  end_time: z.string().trim().min(1),
+  reason: z.string().optional().default('')
+});
+
 const jobStatuses = new Set(['scheduled', 'checked_in', 'in_progress', 'waiting_parts', 'paused', 'ready', 'completed']);
+
+function minutesFromTime(value: string) {
+  const cleaned = clean(value);
+  const meridianMatch = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (meridianMatch) {
+    let hours = Number(meridianMatch[1]);
+    const minutes = Number(meridianMatch[2]);
+    const meridian = meridianMatch[3].toUpperCase();
+    if (meridian === 'PM' && hours < 12) hours += 12;
+    if (meridian === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  }
+  const [hours = '0', minutes = '0'] = cleaned.split(':');
+  return Number(hours) * 60 + Number(minutes);
+}
+
+function timeFromMinutes(value: number) {
+  const hours24 = Math.floor(value / 60);
+  const minutes = value % 60;
+  const meridian = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 || 12;
+  return `${hours12}:${String(minutes).padStart(2, '0')} ${meridian}`;
+}
+
+function isDateKey(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function weekdayFromDateKey(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day).getDay();
+}
+
+function overlaps(slotMinutes: number, start: string, end: string) {
+  return slotMinutes >= minutesFromTime(start) && slotMinutes < minutesFromTime(end);
+}
 
 function cleanJobStatus(value: string | null | undefined) {
   return value && jobStatuses.has(value) ? value : 'scheduled';
@@ -177,9 +220,80 @@ async function touchVehicle(input: {
   return data;
 }
 
+export async function getAvailableSlots(date: string) {
+  if (!isDateKey(date)) return [];
+
+  const admin = getSupabaseAdmin();
+  const dayOfWeek = weekdayFromDateKey(date);
+  const [{ data: hours, error: hoursError }, { data: blocks, error: blocksError }, { data: appointments, error: appointmentsError }, { data: bookings, error: bookingsError }] =
+    await Promise.all([
+      admin.from('shop_hours').select('*').eq('day_of_week', dayOfWeek).maybeSingle(),
+      admin.from('blocked_times').select('*').eq('block_date', date),
+      admin.from('appointments').select('appointment_time').eq('appointment_date', date).eq('status', 'confirmed'),
+      admin.from('booking_requests').select('preferred_time').eq('preferred_date', date).eq('status', 'requested')
+    ]);
+
+  if (hoursError) throw hoursError;
+  if (blocksError) throw blocksError;
+  if (appointmentsError) throw appointmentsError;
+  if (bookingsError) throw bookingsError;
+  if (!hours?.is_open || !hours.opens_at || !hours.closes_at) return [];
+
+  const taken = new Set([
+    ...(appointments ?? []).map((appointment) => clean(appointment.appointment_time)),
+    ...(bookings ?? []).map((booking) => clean(booking.preferred_time))
+  ]);
+  const slots: string[] = [];
+  const start = minutesFromTime(hours.opens_at);
+  const end = minutesFromTime(hours.closes_at);
+  const interval = hours.slot_interval_minutes || 60;
+
+  for (let slot = start; slot < end; slot += interval) {
+    const label = timeFromMinutes(slot);
+    const blocked = (blocks ?? []).some((block) => overlaps(slot, block.start_time, block.end_time));
+    if (!blocked && !taken.has(label)) slots.push(label);
+  }
+
+  return slots;
+}
+
+export async function createBlockedTime(raw: unknown, createdBy?: string | null) {
+  const input = blockedTimeSchema.parse(raw);
+  if (minutesFromTime(input.start_time) >= minutesFromTime(input.end_time)) {
+    throw new Error('Blocked time must end after it starts.');
+  }
+
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin
+    .from('blocked_times')
+    .insert({
+      block_date: input.block_date,
+      start_time: input.start_time,
+      end_time: input.end_time,
+      reason: clean(input.reason) || null,
+      created_by: createdBy ?? null
+    })
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteBlockedTime(id: string) {
+  const admin = getSupabaseAdmin();
+  const { error } = await admin.from('blocked_times').delete().eq('id', id);
+  if (error) throw error;
+  return { ok: true };
+}
+
 export async function createWebsiteBooking(raw: unknown) {
   const input = bookingRequestSchema.parse(raw);
   const admin = getSupabaseAdmin();
+  const slots = await getAvailableSlots(input.preferred_date);
+  if (!slots.includes(input.preferred_time)) {
+    throw new Error('That time is no longer available. Please choose another time.');
+  }
+
   const customerName = `${input.first_name} ${input.last_name}`;
   const normalizedPhone = normalizePhone(input.phone);
   const customer = await touchCustomer({
@@ -508,16 +622,18 @@ export async function rescheduleAppointment(id: string, raw: unknown) {
 
 export async function getDashboardData() {
   const admin = getSupabaseAdmin();
-  const [bookings, customers, vehicles, queueItems, appointments, notifications] = await Promise.all([
+  const [bookings, customers, vehicles, queueItems, appointments, notifications, shopHours, blockedTimes] = await Promise.all([
     admin.from('booking_requests').select('*').order('created_at', { ascending: false }).limit(100),
     admin.from('customers').select('*').order('updated_at', { ascending: false }).limit(100),
     admin.from('vehicles').select('*').order('updated_at', { ascending: false }).limit(100),
     admin.from('queue_items').select('*').order('created_at', { ascending: false }).limit(100),
     admin.from('appointments').select('*').order('created_at', { ascending: false }).limit(100),
-    admin.from('notification_events').select('*').order('created_at', { ascending: false }).limit(100)
+    admin.from('notification_events').select('*').order('created_at', { ascending: false }).limit(100),
+    admin.from('shop_hours').select('*').order('day_of_week', { ascending: true }),
+    admin.from('blocked_times').select('*').order('block_date', { ascending: true }).order('start_time', { ascending: true }).limit(100)
   ]);
 
-  for (const result of [bookings, customers, vehicles, queueItems, appointments, notifications]) {
+  for (const result of [bookings, customers, vehicles, queueItems, appointments, notifications, shopHours, blockedTimes]) {
     if (result.error) throw result.error;
   }
 
@@ -527,6 +643,8 @@ export async function getDashboardData() {
     vehicles: vehicles.data ?? [],
     queueItems: queueItems.data ?? [],
     appointments: appointments.data ?? [],
-    notifications: notifications.data ?? []
+    notifications: notifications.data ?? [],
+    shopHours: shopHours.data ?? [],
+    blockedTimes: blockedTimes.data ?? []
   };
 }

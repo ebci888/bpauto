@@ -17,6 +17,9 @@ export async function POST(request: Request) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: 'Invalid booking request', issues: error.issues }, { status: 400 });
     }
+    if (error instanceof Error && error.message.includes('no longer available')) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return NextResponse.json(
       { error: process.env.NODE_ENV === 'production' ? 'Could not create booking' : errorMessage(error) },
       { status: 500 }
