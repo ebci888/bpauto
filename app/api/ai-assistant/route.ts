@@ -166,7 +166,7 @@ function normalizeDraft(draft: BookingDraft) {
 
 function missingFields(draft: BookingDraft) {
   const missing: string[] = [];
-  if (!draft.first_name && !draft.last_name) missing.push('name');
+  if (!draft.first_name || !draft.last_name) missing.push('full name');
   if (!draft.phone) missing.push('phone');
   if (!draft.email) missing.push('email');
   if (!draft.vehicle) missing.push('vehicle');

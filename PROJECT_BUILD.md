@@ -222,6 +222,9 @@ Built behavior:
 - `/api/ai-assistant` uses OpenAI first when `OPENAI_API_KEY` is configured, Gemini second when `GEMINI_API_KEY` is configured, and local demo replies when no provider key is present.
 - Assistant turns collect transcript rows in `ai_assistant_conversations` and `ai_assistant_messages`.
 - Assistant extracts a booking draft from chat/voice and can fill the public booking form for customer review.
+- When the draft has full name, phone, email, vehicle, service, date, and time, the assistant can submit the booking request directly through `/api/ai-assistant/book`.
+- Assistant-originated bookings still use the normal booking engine, spam checks, customer/vehicle creation, queue item creation, and notification event logging.
+- Submitted assistant conversations are linked back to the created booking request for follow-up review.
 - Demo mode is intentionally safe: it does not confirm appointments, diagnose with certainty, or quote exact repair prices.
 
 Demo provider env vars:

@@ -523,10 +523,15 @@
       line-height: 1.35;
     }
     .assistant-draft strong { color: var(--text); }
+    .assistant-draft-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
     .assistant-draft button {
       width: 100%;
       min-height: 36px;
-      margin-top: 10px;
       border: none;
       border-radius: 9px;
       color: #fff;
@@ -535,6 +540,18 @@
       font-size: 12px;
       font-weight: 850;
       cursor: pointer;
+    }
+    .assistant-draft button.secondary {
+      color: var(--blue);
+      background: #fff;
+      border: 1px solid var(--blue-pale);
+    }
+    .assistant-draft button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+    @media (max-width: 420px) {
+      .assistant-draft-actions { grid-template-columns: 1fr; }
     }
     .assistant-status-line { min-height: 16px; margin-top: 8px; color: var(--muted); font-size: 11px; text-align: center; }
 
@@ -1211,7 +1228,10 @@
     <div class="assistant-draft" id="assistantDraft">
       <h5>Booking draft</h5>
       <ul id="assistantDraftList"></ul>
-      <button type="button" onclick="applyAssistantDraft()">Fill Booking Form</button>
+      <div class="assistant-draft-actions">
+        <button class="secondary" type="button" onclick="applyAssistantDraft()">Fill Form</button>
+        <button type="button" id="assistantSubmitBooking" onclick="submitAssistantBooking()">Send Request</button>
+      </div>
     </div>
     <form class="assistant-composer" id="assistantForm">
       <button class="assistant-mic" type="button" id="assistantMic" aria-label="Start voice chat" onclick="startVoiceChat()">🎙</button>
@@ -1500,6 +1520,7 @@
   const assistantMessages = [];
   let assistantConversationId = null;
   let assistantBookingDraft = {};
+  let assistantBookingSubmitted = false;
   const assistantPanel = document.getElementById('voicePanel');
   const assistantMessageList = document.getElementById('assistantMessages');
   const assistantForm = document.getElementById('assistantForm');
@@ -1510,6 +1531,7 @@
   const assistantProvider = document.getElementById('assistantProvider');
   const assistantDraft = document.getElementById('assistantDraft');
   const assistantDraftList = document.getElementById('assistantDraftList');
+  const assistantSubmitBooking = document.getElementById('assistantSubmitBooking');
 
   function localAssistantReply(message) {
     const text = message.toLowerCase();
@@ -1559,11 +1581,12 @@
     const visibleEntries = Object.entries(assistantBookingDraft).filter(([, value]) => String(value || '').trim());
     if (!assistantDraft || !assistantDraftList || !visibleEntries.length) return;
 
+    const bookingMissing = assistantBookingMissingFields();
     assistantDraft.classList.add('active');
     assistantDraftList.innerHTML = '';
     visibleEntries
       .filter(([key]) => !['safety_note'].includes(key))
-      .slice(0, 7)
+      .slice(0, 9)
       .forEach(([key, value]) => {
         const item = document.createElement('li');
         const label = document.createElement('strong');
@@ -1578,12 +1601,95 @@
       item.append(label, ` ${assistantBookingDraft.safety_note}`);
       assistantDraftList.appendChild(item);
     }
-    if (missing?.length) {
+    const needed = bookingMissing.length ? bookingMissing : missing;
+    if (needed?.length) {
       const item = document.createElement('li');
       const label = document.createElement('strong');
       label.textContent = 'Still needed:';
-      item.append(label, ` ${missing.join(', ')}`);
+      item.append(label, ` ${needed.join(', ')}`);
       assistantDraftList.appendChild(item);
+    }
+    if (assistantSubmitBooking) assistantSubmitBooking.disabled = assistantBookingSubmitted || bookingMissing.length > 0;
+  }
+
+  function assistantBookingMissingFields() {
+    const draft = assistantBookingDraft || {};
+    const missing = [];
+    if (!String(draft.first_name || '').trim() || !String(draft.last_name || '').trim()) missing.push('full name');
+    if (!String(draft.phone || '').trim()) missing.push('phone');
+    if (!String(draft.email || '').trim()) missing.push('email');
+    if (!String(draft.vehicle || '').trim()) missing.push('vehicle');
+    if (!String(draft.service || '').trim()) missing.push('service or symptom');
+    if (!String(draft.preferred_date || '').trim()) missing.push('preferred date');
+    if (!String(draft.preferred_time || '').trim()) missing.push('preferred time');
+    return missing;
+  }
+
+  function assistantBookingPayload() {
+    const draft = assistantBookingDraft || {};
+    return {
+      first_name: String(draft.first_name || '').trim(),
+      last_name: String(draft.last_name || '').trim(),
+      phone: String(draft.phone || '').trim(),
+      email: String(draft.email || '').trim(),
+      vehicle: String(draft.vehicle || '').trim(),
+      service: String(draft.service || '').trim(),
+      preferred_date: String(draft.preferred_date || '').trim(),
+      preferred_time: String(draft.preferred_time || '').trim(),
+      notes: [draft.notes, draft.safety_note, assistantConversationId ? `AI conversation: ${assistantConversationId}` : '']
+        .filter(Boolean)
+        .join('\n\n'),
+      booking_started_at: bookingStartedAt?.value || String(Date.now() - 5000),
+      company: '',
+      website: '',
+      'cf-turnstile-response': turnstileResponse?.value || ''
+    };
+  }
+
+  async function submitAssistantBooking() {
+    const missing = assistantBookingMissingFields();
+    if (missing.length) {
+      assistantStatus.textContent = `Still needed before sending: ${missing.join(', ')}.`;
+      renderAssistantDraft(assistantBookingDraft, missing);
+      assistantInput?.focus();
+      return;
+    }
+
+    if (turnstileRequired && turnstileResponse && !turnstileResponse.value) {
+      assistantStatus.textContent = 'Please complete the security check in the booking form, then tap Send Request again.';
+      document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    if (assistantSubmitBooking) assistantSubmitBooking.disabled = true;
+    assistantStatus.textContent = 'Sending booking request to the shop...';
+
+    try {
+      const payload = assistantBookingPayload();
+      const response = await fetch('/api/ai-assistant/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: assistantConversationId,
+          booking: payload,
+          bookingDraft: assistantBookingDraft
+        })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not send booking request.');
+
+      assistantBookingSubmitted = true;
+      addAssistantMessage(
+        'assistant',
+        `Your request has been sent to BP Auto Repair. Reference ${result.booking.reference}. The shop will review it and confirm or adjust the time.`
+      );
+      assistantStatus.textContent = `Request sent. Reference ${result.booking.reference}.`;
+      bookingStatus.textContent = `Thanks ${payload.first_name}. We received your request for ${payload.preferred_date} at ${payload.preferred_time}. Request #${result.booking.reference}.`;
+      bookingStatus.style.color = '#166534';
+      resetTurnstile();
+    } catch (error) {
+      assistantStatus.textContent = error instanceof Error ? error.message : 'Could not send booking request. Please call the shop.';
+      if (assistantSubmitBooking) assistantSubmitBooking.disabled = false;
     }
   }
 
@@ -1718,12 +1824,52 @@
     }
   }
 
-  function startVoiceChat() {
+  async function checkMicrophoneAccess() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      return { ok: false, message: 'This browser cannot directly test the microphone. You can still type below.' };
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((track) => track.stop());
+      return { ok: true, message: '' };
+    } catch (error) {
+      const name = error?.name || '';
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        return { ok: false, message: 'Microphone permission is blocked. Allow microphone access in the browser and try again.' };
+      }
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        return { ok: false, message: 'No microphone was found. Check the input device in your computer sound settings.' };
+      }
+      if (name === 'NotReadableError' || name === 'TrackStartError') {
+        return { ok: false, message: 'The microphone is busy or unavailable. Close other apps using it and try again.' };
+      }
+      return { ok: false, message: 'The microphone could not start. You can still type your question.' };
+    }
+  }
+
+  function speechErrorMessage(errorName) {
+    return {
+      'not-allowed': 'Speech recognition is blocked. Allow microphone access in the browser and try again.',
+      'audio-capture': 'No microphone input was detected. Check your selected input device.',
+      'no-speech': 'I did not hear speech clearly. Try again a little closer to the microphone.',
+      network: 'Speech recognition needs a network connection in this browser. You can still type below.',
+      aborted: 'Voice capture stopped.',
+      'service-not-allowed': 'Speech recognition is not allowed in this browser. You can still type below.'
+    }[errorName] || 'Voice capture stopped. You can still type your question.';
+  }
+
+  async function startVoiceChat() {
     if (!voiceOpen) toggleVoice();
     ensureAssistantReady();
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       assistantStatus.textContent = 'Voice capture is not supported in this browser. You can still type below.';
+      assistantInput?.focus();
+      return;
+    }
+    const mic = await checkMicrophoneAccess();
+    if (!mic.ok) {
+      assistantStatus.textContent = mic.message;
       assistantInput?.focus();
       return;
     }
@@ -1739,10 +1885,10 @@
         assistantStatus.textContent = transcript ? `Heard: ${transcript}` : 'Could not hear that clearly.';
         if (transcript) sendAssistantMessage(transcript, true);
       };
-      recognition.onerror = () => {
+      recognition.onerror = (event) => {
         isListening = false;
         assistantMic.classList.remove('listening');
-        assistantStatus.textContent = 'Microphone could not start. You can still type your question.';
+        assistantStatus.textContent = speechErrorMessage(event.error);
       };
       recognition.onend = () => {
         isListening = false;
@@ -1756,7 +1902,13 @@
     isListening = true;
     assistantMic.classList.add('listening');
     assistantStatus.textContent = 'Listening... ask about booking, service, or a vehicle symptom.';
-    recognition.start();
+    try {
+      recognition.start();
+    } catch {
+      isListening = false;
+      assistantMic.classList.remove('listening');
+      assistantStatus.textContent = 'Voice capture is already starting. Wait a second and try again.';
+    }
   }
 
   function openTextChat() {
