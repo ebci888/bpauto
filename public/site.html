@@ -623,6 +623,19 @@
     .assistant-mic.connecting { cursor: wait; }
     .assistant-send { background: var(--blue); color: #fff; }
     .assistant-send:disabled { opacity: 0.55; cursor: wait; }
+    .assistant-end-voice {
+      display: none;
+      min-height: 34px;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      background: #fff5f5;
+      color: #b91c1c;
+      cursor: pointer;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 11px;
+      font-weight: 850;
+    }
+    .assistant-end-voice.active { display: block; }
     .assistant-actions { display: flex; gap: 8px; margin-top: 10px; }
     .assistant-action {
       flex: 1; text-align: center; text-decoration: none; font-size: 12px;
@@ -1404,6 +1417,7 @@
         <input id="assistantInput" type="text" autocomplete="off" placeholder="Type a question or booking detail..." />
         <button class="assistant-send" id="assistantSend" type="submit" aria-label="Send message">→</button>
       </form>
+      <button class="assistant-end-voice" id="assistantEndVoice" type="button" onclick="endRealtimeVoiceSession()">End voice &amp; review request</button>
       <div class="assistant-draft" id="assistantDraft">
         <h5>Booking checklist</h5>
         <ul id="assistantDraftList"></ul>
@@ -1733,6 +1747,7 @@
   const assistantDraft = document.getElementById('assistantDraft');
   const assistantDraftList = document.getElementById('assistantDraftList');
   const assistantSubmitBooking = document.getElementById('assistantSubmitBooking');
+  const assistantEndVoice = document.getElementById('assistantEndVoice');
 
   function localAssistantReply(message) {
     const text = message.toLowerCase();
@@ -2219,6 +2234,31 @@
     assistantMic.textContent = realtimeConnecting ? '...' : realtimeConnected ? '■' : '🎙';
     assistantMic.setAttribute('aria-label', active ? 'Stop voice chat' : 'Start voice chat');
     assistantMic.title = active ? 'Stop voice chat' : 'Start voice chat';
+    assistantEndVoice?.classList.toggle('active', active);
+  }
+
+  function reviewAssistantBookingAfterVoice() {
+    if (assistantBookingSubmitted) {
+      assistantStatus.textContent = 'Voice ended. The booking request was already sent.';
+      return;
+    }
+
+    const hasDraft = Object.values(assistantBookingDraft || {}).some((value) => String(value || '').trim());
+    if (!hasDraft) {
+      assistantStatus.textContent = 'Voice ended. I did not catch enough booking details yet. Continue by text or use Book online.';
+      return;
+    }
+
+    const missing = assistantBookingMissingFields();
+    renderAssistantDraft(assistantBookingDraft, missing);
+    if (missing.length) {
+      assistantStatus.textContent = `Voice ended. Still needed before sending: ${missing.join(', ')}.`;
+      assistantInput?.focus();
+      return;
+    }
+
+    assistantStatus.textContent = 'Voice ended. Review the checklist, then tap Send Request to create the booking.';
+    assistantSubmitBooking?.focus();
   }
 
   function stopRealtimeVoice(message = 'Voice chat ended. You can type below or tap the mic to start again.') {
@@ -2253,13 +2293,18 @@
     if (message) assistantStatus.textContent = message;
   }
 
+  function endRealtimeVoiceSession() {
+    stopRealtimeVoice('');
+    reviewAssistantBookingAfterVoice();
+  }
+
   async function startVoiceChat() {
     openAssistantPanel(false);
     ensureAssistantReady();
     hideAssistantLauncher();
 
     if (realtimeConnected || realtimeConnecting) {
-      stopRealtimeVoice();
+      endRealtimeVoiceSession();
       return;
     }
 
