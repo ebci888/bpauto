@@ -182,7 +182,8 @@ Expected behavior:
 - Tablet: schedule controls and cards remain readable.
 - Desktop: calendar views use available width without feeling sparse.
 
-Current job details interaction uses a modal on desktop and a bottom-sheet style modal on mobile.
+Input/review interactions should open in modals instead of expanding the page height.
+Current job details and Quick Capture interactions use a modal on desktop and a bottom-sheet style modal on mobile.
 
 ## Optional Add-On Modules
 

@@ -121,6 +121,15 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
     setData(await response.json());
   }
 
+  function openQuickCapture() {
+    setQuickStatus('');
+    setQuickCaptureOpen(true);
+  }
+
+  function closeQuickCapture() {
+    setQuickCaptureOpen(false);
+  }
+
   async function signOut() {
     const supabase = createSupabaseBrowserClient();
     await supabase?.auth.signOut();
@@ -246,7 +255,8 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
           <QuickCapturePanel
             quickStatus={quickStatus}
             open={quickCaptureOpen}
-            onToggle={() => setQuickCaptureOpen((open) => !open)}
+            onOpen={openQuickCapture}
+            onClose={closeQuickCapture}
             onSubmit={handleQuickCapture}
           />
         </>
@@ -256,7 +266,8 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
         <QuickCapturePanel
           quickStatus={quickStatus}
           open={quickCaptureOpen}
-          onToggle={() => setQuickCaptureOpen((open) => !open)}
+          onOpen={openQuickCapture}
+          onClose={closeQuickCapture}
           onSubmit={handleQuickCapture}
         />
       )}
@@ -663,83 +674,104 @@ function ScheduleView({
 function QuickCapturePanel({
   quickStatus,
   open,
-  onToggle,
+  onOpen,
+  onClose,
   onSubmit
 }: {
   quickStatus: string;
   open: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
+  onClose: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
   return (
-    <section className={`quick-capture-panel ${open ? 'open' : 'closed'}`}>
+    <section className="quick-capture-panel">
       <div className="quick-capture-heading">
         <div>
           <p>Fast intake</p>
           <h2>Quick Capture</h2>
         </div>
-        <button type="button" onClick={onToggle}>
-          {open ? 'Close' : '+ Quick Add'}
+        <button type="button" onClick={onOpen}>
+          + Quick Add
         </button>
       </div>
       {open && (
-        <form className="quick-capture-form" onSubmit={onSubmit}>
-          <label className="wide">
-            <span>Quick note</span>
-            <textarea name="quick_note" placeholder="Say or type: John, 604-555-1234, red Civic, oil change, waiting" required />
-          </label>
-          <details className="quick-details">
-            <summary>Details</summary>
-            <div>
-              <label>
-                <span>Name</span>
-                <input name="customer_name" />
-              </label>
-              <label>
-                <span>Phone</span>
-                <input name="phone" type="tel" />
-              </label>
-              <label>
-                <span>Email</span>
-                <input name="email" type="email" />
-              </label>
-              <label>
-                <span>Vehicle</span>
-                <input name="vehicle_description" />
-              </label>
-              <label>
-                <span>Plate</span>
-                <input name="license_plate" />
-              </label>
-              <label>
-                <span>VIN</span>
-                <input name="vin" />
-              </label>
-              <label>
-                <span>Service</span>
-                <input name="service_needed" />
-              </label>
-              <label>
-                <span>Status</span>
-                <select name="waiting_status">
-                  <option value="">Unknown</option>
-                  <option value="waiting">Waiting</option>
-                  <option value="dropped_off">Dropped off</option>
-                </select>
-              </label>
-              <label>
-                <span>Priority</span>
-                <select name="priority">
-                  <option value="">Normal</option>
-                  <option value="high">High</option>
-                  <option value="urgent">Urgent</option>
-                </select>
-              </label>
+        <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+          <section className="job-modal quick-capture-modal" role="dialog" aria-modal="true" aria-labelledby="quick-capture-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="job-modal-header">
+              <div>
+                <p>Fast intake</p>
+                <h3 id="quick-capture-title">Quick Capture</h3>
+                <span>Capture what is known now. Complete the record later.</span>
+              </div>
+              <button type="button" aria-label="Close quick capture" onClick={onClose}>
+                Close
+              </button>
             </div>
-          </details>
-          <button type="submit">Save</button>
-          <p role="status">{quickStatus}</p>
-        </form>
+            <form className="quick-capture-form" onSubmit={onSubmit}>
+              <label className="wide">
+                <span>Quick note</span>
+                <textarea name="quick_note" placeholder="Say or type: John, 604-555-1234, red Civic, oil change, waiting" required />
+              </label>
+              <details className="quick-details">
+                <summary>Optional details</summary>
+                <div>
+                  <label>
+                    <span>Name</span>
+                    <input name="customer_name" />
+                  </label>
+                  <label>
+                    <span>Phone</span>
+                    <input name="phone" type="tel" />
+                  </label>
+                  <label>
+                    <span>Email</span>
+                    <input name="email" type="email" />
+                  </label>
+                  <label>
+                    <span>Vehicle</span>
+                    <input name="vehicle_description" />
+                  </label>
+                  <label>
+                    <span>Plate</span>
+                    <input name="license_plate" />
+                  </label>
+                  <label>
+                    <span>VIN</span>
+                    <input name="vin" />
+                  </label>
+                  <label>
+                    <span>Service</span>
+                    <input name="service_needed" />
+                  </label>
+                  <label>
+                    <span>Status</span>
+                    <select name="waiting_status">
+                      <option value="">Unknown</option>
+                      <option value="waiting">Waiting</option>
+                      <option value="dropped_off">Dropped off</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Priority</span>
+                    <select name="priority">
+                      <option value="">Normal</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </label>
+                </div>
+              </details>
+              <div className="quick-capture-actions">
+                <button type="submit">Save</button>
+                <button type="button" onClick={onClose}>
+                  Cancel
+                </button>
+              </div>
+              <p role="status">{quickStatus}</p>
+            </form>
+          </section>
+        </div>
       )}
     </section>
   );

@@ -134,6 +134,7 @@ a {
 .mode-toggle button,
 .quick-capture-heading button,
 .quick-capture-form button,
+.quick-capture-actions button,
 .job-modal-actions button,
 .confirm-form button,
 .record-actions button,
@@ -518,6 +519,10 @@ a {
   box-shadow: 0 30px 90px rgba(17, 24, 39, 0.24);
 }
 
+.quick-capture-modal {
+  width: min(700px, 100%);
+}
+
 .job-modal-header {
   display: flex;
   align-items: flex-start;
@@ -629,7 +634,7 @@ a {
 
 .quick-capture-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
   padding: 18px;
 }
@@ -645,18 +650,30 @@ a {
 }
 
 .quick-capture-form textarea {
-  min-height: 82px;
+  min-height: 136px;
   padding: 14px;
   font-size: 17px;
   line-height: 1.5;
   resize: vertical;
 }
 
-.quick-capture-form button {
+.quick-capture-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.quick-capture-actions button {
   min-height: 50px;
   align-self: end;
+  padding: 0 16px;
   color: #111827;
   background: var(--dashboard-gold);
+}
+
+.quick-capture-actions button[type="button"] {
+  background: #fff;
+  border: 1px solid var(--dashboard-line);
 }
 
 .quick-capture-form p {
@@ -864,7 +881,8 @@ a {
   }
 
   .job-modal-header button,
-  .job-modal-actions button {
+  .job-modal-actions button,
+  .quick-capture-actions button {
     width: 100%;
   }
 
