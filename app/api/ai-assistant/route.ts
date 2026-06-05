@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { getAvailableSlots } from '@/lib/shop';
 import { clean } from '@/lib/text';
 
 export const dynamic = 'force-dynamic';
@@ -70,6 +71,7 @@ Shop facts:
 - Current date in Surrey, BC: ${currentShopDateKey()}.
 - Services: diesel engine repair, engine diagnostics, check engine light, brakes, oil and fluid service, suspension and steering, electrical/no-start, battery/charging, transmission service, general inspection, fleet and truck work.
 - Booking flow: customers submit a request; the owner confirms or adjusts the time.
+- Never say an appointment is confirmed, booked, or that you will confirm it yourself. Say it is a request until the shop owner confirms.
 
 Local safety/intake behavior:
 - For no-start: ask if lights come on, if it clicks/cranks, battery age, and whether it is safe/accessible for tow.
@@ -174,6 +176,32 @@ function missingFields(draft: BookingDraft) {
   if (!draft.preferred_date) missing.push('preferred date');
   if (!draft.preferred_time) missing.push('preferred time');
   return missing;
+}
+
+function availabilityText(date: string, slots: string[]) {
+  if (!slots.length) return `I checked ${date}, and there are no open request times left for that day. We can choose another day, or you can call the shop if this is urgent.`;
+  const preview = slots.slice(0, 6).join(', ');
+  return `Open request times for ${date} include ${preview}${slots.length > 6 ? ', and more' : ''}. Which time works best?`;
+}
+
+async function applyAvailabilityCheck(draft: BookingDraft, reply: string) {
+  if (!draft.preferred_date) return { draft, reply };
+
+  const slots = await getAvailableSlots(draft.preferred_date);
+  if (!draft.preferred_time) return { draft, reply };
+
+  if (slots.includes(draft.preferred_time)) {
+    return {
+      draft,
+      reply: `${reply} ${draft.preferred_time} on ${draft.preferred_date} is currently open as a request slot.`
+    };
+  }
+
+  const unavailableTime = draft.preferred_time;
+  return {
+    draft: { ...draft, preferred_time: undefined },
+    reply: `I checked the schedule, and ${unavailableTime} on ${draft.preferred_date} is not available. ${availabilityText(draft.preferred_date, slots)}`
+  };
 }
 
 function transcript(messages: AssistantMessage[], message: string, draft: BookingDraft) {
@@ -390,11 +418,14 @@ export async function POST(request: Request) {
 
   if (!result) result = fallbackPayload(message, currentDraft);
 
-  const bookingDraft = normalizeDraft(mergeDraft(currentDraft, result.booking_draft));
+  const initialBookingDraft = normalizeDraft(mergeDraft(currentDraft, result.booking_draft));
+  const availabilityChecked = await applyAvailabilityCheck(initialBookingDraft, result.reply);
+  const bookingDraft = availabilityChecked.draft;
   const missing = missingFields(bookingDraft);
   const responsePayload: AssistantPayload = {
     ...defaultAssistantPayload,
     ...result,
+    reply: availabilityChecked.reply,
     booking_draft: bookingDraft,
     missing_fields: missing,
     urgency: result.urgency || bookingDraft.urgency || 'routine',
