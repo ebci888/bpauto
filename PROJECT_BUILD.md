@@ -174,6 +174,7 @@ Built behavior:
   - skipped
 - Brevo/Twilio are not required for MVP.
 - If providers are missing, events are logged as `skipped`.
+- Notification tab includes a provider setup checklist showing Brevo/Twilio readiness and missing env vars.
 
 ## Current Notification Scope
 

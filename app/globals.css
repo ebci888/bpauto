@@ -833,6 +833,46 @@ a {
   padding-top: 12px;
 }
 
+.notification-setup {
+  padding: 18px;
+  border-bottom: 1px solid var(--dashboard-line);
+}
+
+.notification-setup-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.notification-setup-heading h3,
+.setup-grid h3 {
+  font-size: 16px;
+}
+
+.notification-setup-heading p,
+.setup-grid p,
+.setup-status {
+  margin: 5px 0 0;
+  color: var(--dashboard-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.setup-grid article {
+  border: 1px solid var(--dashboard-line);
+  border-radius: 10px;
+  padding: 14px;
+  background: #f8fafc;
+}
+
 .record-card {
   border: 1px solid var(--dashboard-line);
   border-radius: 10px;
@@ -950,6 +990,7 @@ a {
   }
 
   .metric-grid,
+  .setup-grid,
   .quick-capture-form,
   .quick-details > div {
     grid-template-columns: 1fr;
@@ -957,6 +998,7 @@ a {
 
   .schedule-header,
   .availability-toolbar,
+  .notification-setup-heading,
   .quick-capture-heading {
     align-items: stretch;
     flex-direction: column;

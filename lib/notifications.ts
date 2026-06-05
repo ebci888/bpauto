@@ -10,12 +10,47 @@ type NotificationInput = {
   body: string;
 };
 
+const brevoRequiredEnv = ['BREVO_API_KEY', 'BREVO_FROM_EMAIL'];
+const twilioRequiredEnv = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM'];
+const ownerAlertRequiredEnv = ['OWNER_EMAIL'];
+
+function envConfigured(names: string[]) {
+  return names.every((name) => Boolean(process.env[name]));
+}
+
+function missingEnv(names: string[]) {
+  return names.filter((name) => !process.env[name]);
+}
+
 function emailConfigured() {
-  return Boolean(process.env.BREVO_API_KEY && process.env.BREVO_FROM_EMAIL);
+  return envConfigured(brevoRequiredEnv);
 }
 
 function smsConfigured() {
-  return Boolean(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_FROM);
+  return envConfigured(twilioRequiredEnv);
+}
+
+export function getNotificationSetupStatus() {
+  return {
+    brevo: {
+      ready: emailConfigured(),
+      requiredEnv: brevoRequiredEnv,
+      missingEnv: missingEnv(brevoRequiredEnv),
+      optionalEnv: ['BREVO_FROM_NAME']
+    },
+    twilio: {
+      ready: smsConfigured(),
+      requiredEnv: twilioRequiredEnv,
+      missingEnv: missingEnv(twilioRequiredEnv),
+      optionalEnv: ['OWNER_PHONE']
+    },
+    ownerAlerts: {
+      ready: envConfigured(ownerAlertRequiredEnv) && (emailConfigured() || smsConfigured()),
+      requiredEnv: ownerAlertRequiredEnv,
+      missingEnv: missingEnv(ownerAlertRequiredEnv),
+      note: 'Owner alerts send by Brevo email when email is configured, or Twilio SMS when OWNER_PHONE and Twilio are configured.'
+    }
+  };
 }
 
 async function sendBrevoEmail(to: string, subject: string, text: string) {

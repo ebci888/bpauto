@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { BlockedTime, DashboardData, BookingRequest, QueueItem, ShopHour, SpecialHour } from '@/types/database';
 import { createSupabaseBrowserClient } from '@/lib/supabase/browser';
 
@@ -26,6 +26,18 @@ type ScheduleEntry = {
   actualHours: number | null;
   billableHours: number | null;
   internalNotes: string;
+};
+type ProviderSetup = {
+  ready: boolean;
+  requiredEnv: string[];
+  missingEnv: string[];
+  optionalEnv?: string[];
+  note?: string;
+};
+type NotificationSetupStatus = {
+  brevo: ProviderSetup;
+  twilio: ProviderSetup;
+  ownerAlerts: ProviderSetup;
 };
 
 const tabs: Array<{ id: Tab; label: string }> = [
@@ -117,10 +129,35 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   const [specialHourModalOpen, setSpecialHourModalOpen] = useState(false);
   const [selectedSpecialHour, setSelectedSpecialHour] = useState<SpecialHour | null>(null);
   const [availabilityStatus, setAvailabilityStatus] = useState('');
+  const [notificationSetup, setNotificationSetup] = useState<NotificationSetupStatus | null>(null);
+  const [notificationSetupStatus, setNotificationSetupStatus] = useState('');
 
   const todayQueue = useMemo(() => data.queueItems.filter((item) => item.queue_date === todayKey()), [data.queueItems]);
   const incomplete = useMemo(() => data.queueItems.filter((item) => item.is_incomplete), [data.queueItems]);
   const requestedBookings = useMemo(() => data.bookings.filter((booking) => booking.status === 'requested'), [data.bookings]);
+
+  useEffect(() => {
+    if (tab !== 'notifications' || notificationSetup) return;
+    let cancelled = false;
+    setNotificationSetupStatus('Checking providers...');
+    fetch('/api/notifications/setup')
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Could not load notification setup.');
+        return response.json();
+      })
+      .then((result) => {
+        if (!cancelled) {
+          setNotificationSetup(result);
+          setNotificationSetupStatus('');
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) setNotificationSetupStatus(error instanceof Error ? error.message : 'Could not load notification setup.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, notificationSetup]);
 
   async function refresh() {
     const response = await fetch('/api/dashboard');
@@ -609,6 +646,7 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
 
       {tab === 'notifications' && (
         <Panel title="Notification Log" subtitle="Every owner alert, customer email, and customer SMS is tracked.">
+          <NotificationSetupPanel setup={notificationSetup} status={notificationSetupStatus} />
           <SimpleList
             empty="No notifications yet."
             rows={data.notifications.map((notification) => ({
@@ -1347,6 +1385,65 @@ function QueueList({ items, cleanup = false, onUpdate }: { items: QueueItem[]; c
         </article>
       ))}
     </div>
+  );
+}
+
+function NotificationSetupPanel({ setup, status }: { setup: NotificationSetupStatus | null; status: string }) {
+  const rows = setup
+    ? [
+        {
+          id: 'brevo',
+          title: 'Brevo Email',
+          body: 'Sends customer request, confirmation, and reschedule emails.',
+          setup: setup.brevo
+        },
+        {
+          id: 'twilio',
+          title: 'Twilio SMS',
+          body: 'Sends customer request, confirmation, and reschedule text messages.',
+          setup: setup.twilio
+        },
+        {
+          id: 'owner',
+          title: 'Owner Alerts',
+          body: setup.ownerAlerts.note || 'Alerts the owner when new booking requests arrive.',
+          setup: setup.ownerAlerts
+        }
+      ]
+    : [];
+
+  return (
+    <section className="notification-setup" aria-label="Notification provider setup">
+      <div className="notification-setup-heading">
+        <div>
+          <h3>Provider Setup</h3>
+          <p>Messages are logged now. Providers need these variables before they send.</p>
+        </div>
+        <span className={`status ${setup && rows.every((row) => row.setup.ready) ? 'confirmed' : 'requested'}`}>
+          {setup && rows.every((row) => row.setup.ready) ? 'ready' : 'setup needed'}
+        </span>
+      </div>
+      {status && <p className="setup-status">{status}</p>}
+      <div className="setup-grid">
+        {rows.map((row) => (
+          <article key={row.id}>
+            <div className="record-top">
+              <div>
+                <h3>{row.title}</h3>
+                <p>{row.body}</p>
+              </div>
+              <span className={`status ${row.setup.ready ? 'confirmed' : 'requested'}`}>{row.setup.ready ? 'ready' : 'missing'}</span>
+            </div>
+            <div className="missing-row">
+              {(row.setup.missingEnv.length ? row.setup.missingEnv : row.setup.requiredEnv).map((name) => (
+                <span key={name}>{row.setup.missingEnv.includes(name) ? `Missing ${name}` : `${name} set`}</span>
+              ))}
+            </div>
+            {!!row.setup.optionalEnv?.length && <p>Optional: {row.setup.optionalEnv.join(', ')}</p>}
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 

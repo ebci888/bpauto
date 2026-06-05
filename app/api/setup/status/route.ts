@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase/admin';
+import { getNotificationSetupStatus } from '@/lib/notifications';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +25,7 @@ const requiredTables = [
 export async function GET() {
   const supabasePublicConfigured = configured(['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY']);
   const supabaseAdminConfigured = configured(['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']);
-  const brevoConfigured = configured(['BREVO_API_KEY', 'BREVO_FROM_EMAIL']);
-  const twilioConfigured = configured(['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM']);
+  const notificationSetup = getNotificationSetupStatus();
 
   let databaseReachable = false;
   let migrationApplied = false;
@@ -66,7 +66,7 @@ export async function GET() {
 
   const readyForLogin =
     supabasePublicConfigured && supabaseAdminConfigured && migrationApplied && Boolean(process.env.OWNER_EMAIL) && ownerProfileExists;
-  const readyForMessaging = brevoConfigured || twilioConfigured;
+  const readyForMessaging = notificationSetup.brevo.ready || notificationSetup.twilio.ready;
 
   return NextResponse.json({
     ok: readyForLogin,
@@ -86,8 +86,8 @@ export async function GET() {
       readyForLogin
     },
     notifications: {
-      brevoConfigured,
-      twilioConfigured,
+      brevoConfigured: notificationSetup.brevo.ready,
+      twilioConfigured: notificationSetup.twilio.ready,
       readyForMessaging
     },
     nextStep: readyForLogin
