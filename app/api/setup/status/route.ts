@@ -29,6 +29,8 @@ export async function GET() {
   let databaseError = '';
   const existingTables: string[] = [];
   const missingTables: string[] = [];
+  let ownerProfileExists = false;
+  let ownerProfileRole: string | null = null;
 
   if (supabaseAdminConfigured) {
     try {
@@ -44,12 +46,23 @@ export async function GET() {
       }
       databaseReachable = existingTables.length > 0;
       migrationApplied = missingTables.length === 0;
+
+      if (migrationApplied && process.env.OWNER_EMAIL) {
+        const { data: ownerProfile } = await admin
+          .from('profiles')
+          .select('role')
+          .ilike('email', process.env.OWNER_EMAIL)
+          .maybeSingle();
+        ownerProfileExists = Boolean(ownerProfile);
+        ownerProfileRole = ownerProfile?.role ?? null;
+      }
     } catch (error) {
       databaseError = error instanceof Error ? error.message : 'Could not connect to Supabase';
     }
   }
 
-  const readyForLogin = supabasePublicConfigured && supabaseAdminConfigured && migrationApplied && Boolean(process.env.OWNER_EMAIL);
+  const readyForLogin =
+    supabasePublicConfigured && supabaseAdminConfigured && migrationApplied && Boolean(process.env.OWNER_EMAIL) && ownerProfileExists;
   const readyForMessaging = brevoConfigured || twilioConfigured;
 
   return NextResponse.json({
@@ -65,6 +78,8 @@ export async function GET() {
     },
     auth: {
       ownerEmailConfigured: Boolean(process.env.OWNER_EMAIL),
+      ownerProfileExists,
+      ownerProfileRole,
       readyForLogin
     },
     notifications: {
@@ -76,6 +91,8 @@ export async function GET() {
       ? 'Create or sign in with the owner account, then test /dashboard.'
       : missingTables.length
         ? `Apply the Supabase migration. Missing tables: ${missingTables.join(', ')}.`
+        : !ownerProfileExists
+          ? 'Create the Supabase Auth owner user using OWNER_EMAIL.'
         : 'Add Supabase env vars, apply the migration, and set OWNER_EMAIL.'
   });
 }
