@@ -63,6 +63,7 @@ export const blockedTimeSchema = z.object({
 });
 
 const jobStatuses = new Set(['scheduled', 'checked_in', 'in_progress', 'waiting_parts', 'paused', 'ready', 'completed']);
+const shopTimeZone = 'America/Vancouver';
 
 function minutesFromTime(value: string) {
   const cleaned = clean(value);
@@ -89,6 +90,23 @@ function timeFromMinutes(value: number) {
 
 function isDateKey(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function currentShopTime() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: shopTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    dateKey: `${values.year}-${values.month}-${values.day}`,
+    minutes: Number(values.hour) * 60 + Number(values.minute)
+  };
 }
 
 function weekdayFromDateKey(value: string) {
@@ -223,6 +241,9 @@ async function touchVehicle(input: {
 export async function getAvailableSlots(date: string) {
   if (!isDateKey(date)) return [];
 
+  const shopNow = currentShopTime();
+  if (date < shopNow.dateKey) return [];
+
   const admin = getSupabaseAdmin();
   const dayOfWeek = weekdayFromDateKey(date);
   const [{ data: hours, error: hoursError }, { data: blocks, error: blocksError }, { data: appointments, error: appointmentsError }, { data: bookings, error: bookingsError }] =
@@ -247,11 +268,13 @@ export async function getAvailableSlots(date: string) {
   const start = minutesFromTime(hours.opens_at);
   const end = minutesFromTime(hours.closes_at);
   const interval = hours.slot_interval_minutes || 60;
+  const passedCutoff = date === shopNow.dateKey ? shopNow.minutes : -1;
 
   for (let slot = start; slot < end; slot += interval) {
     const label = timeFromMinutes(slot);
     const blocked = (blocks ?? []).some((block) => overlaps(slot, block.start_time, block.end_time));
-    if (!blocked && !taken.has(label)) slots.push(label);
+    const alreadyPassed = slot <= passedCutoff;
+    if (!alreadyPassed && !blocked && !taken.has(label)) slots.push(label);
   }
 
   return slots;

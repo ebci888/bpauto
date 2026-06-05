@@ -127,6 +127,7 @@ Built availability behavior:
   - an owner blocked-time record
   - a confirmed appointment
   - an existing requested booking for the same date/time
+- Same-day slots are removed once that time has already passed in Vancouver time.
 - Public booking submit validates the selected slot server-side before creating records.
 - Dashboard has an Availability tab where the owner can add or remove blocked time.
 
