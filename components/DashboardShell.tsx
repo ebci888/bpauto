@@ -125,6 +125,46 @@ function scheduleTitle(mode: ScheduleMode, key: string) {
 }
 
 const weekdayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const calendarStartMinutes = 7 * 60;
+const calendarEndMinutes = 19 * 60;
+const calendarSlotMinutes = 15;
+const calendarSlotHeight = 22;
+
+function minutesFromScheduleTime(value: string) {
+  const cleaned = value.trim();
+  const meridianMatch = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (meridianMatch) {
+    let hours = Number(meridianMatch[1]);
+    const minutes = Number(meridianMatch[2]);
+    const meridian = meridianMatch[3].toUpperCase();
+    if (meridian === 'PM' && hours < 12) hours += 12;
+    if (meridian === 'AM' && hours === 12) hours = 0;
+    return hours * 60 + minutes;
+  }
+
+  const twentyFourHour = cleaned.match(/^(\d{1,2}):(\d{2})/);
+  if (twentyFourHour) return Number(twentyFourHour[1]) * 60 + Number(twentyFourHour[2]);
+  return calendarStartMinutes;
+}
+
+function scheduleTimeLabel(minutes: number) {
+  const hours24 = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  const meridian = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 || 12;
+  return `${hours12}:${String(mins).padStart(2, '0')} ${meridian}`;
+}
+
+function scheduleHourLabel(minutes: number) {
+  const hours24 = Math.floor(minutes / 60);
+  const meridian = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 || 12;
+  return `${hours12} ${meridian}`;
+}
+
+function roundToScheduleSlot(minutes: number) {
+  return Math.max(calendarStartMinutes, Math.min(calendarEndMinutes - calendarSlotMinutes, Math.round(minutes / calendarSlotMinutes) * calendarSlotMinutes));
+}
 
 export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
   const [data, setData] = useState(initialData);
@@ -510,12 +550,14 @@ export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
             selectedDate={scheduleDate}
             onModeChange={setScheduleMode}
             onDateChange={setScheduleDate}
+            onQuickCapture={openQuickCapture}
             onConfirmBooking={submitConfirmBooking}
             onRescheduleAppointment={submitRescheduleAppointment}
           />
           <QuickCapturePanel
             quickStatus={quickStatus}
             open={quickCaptureOpen}
+            modalOnly
             onOpen={openQuickCapture}
             onClose={closeQuickCapture}
             onSubmit={handleQuickCapture}
@@ -1045,6 +1087,7 @@ function ScheduleView({
   selectedDate,
   onModeChange,
   onDateChange,
+  onQuickCapture,
   onConfirmBooking,
   onRescheduleAppointment
 }: {
@@ -1055,6 +1098,7 @@ function ScheduleView({
   selectedDate: string;
   onModeChange: (mode: ScheduleMode) => void;
   onDateChange: (date: string) => void;
+  onQuickCapture: () => void;
   onConfirmBooking: (bookingId: string, payload: Record<string, unknown>) => Promise<void>;
   onRescheduleAppointment: (appointmentId: string, payload: Record<string, unknown>) => Promise<void>;
 }) {
@@ -1117,6 +1161,23 @@ function ScheduleView({
 
   const entries = [...requestedEntries, ...confirmedEntries].sort((a, b) => a.time.localeCompare(b.time));
   const unscheduledWalkIns = queueItems.filter((item) => !item.booking_request_id);
+  const timeSlots = Array.from(
+    { length: (calendarEndMinutes - calendarStartMinutes) / calendarSlotMinutes },
+    (_, index) => calendarStartMinutes + index * calendarSlotMinutes
+  );
+  const hourTicks = Array.from({ length: (calendarEndMinutes - calendarStartMinutes) / 60 + 1 }, (_, index) => calendarStartMinutes + index * 60);
+  const calendarHeight = timeSlots.length * calendarSlotHeight;
+  const calendarColumns = dates.length;
+
+  function entryDuration(entry: ScheduleEntry) {
+    if (entry.estimatedHours) return Math.max(30, entry.estimatedHours * 60);
+    return entry.tone === 'requested' ? 45 : 60;
+  }
+
+  function openDroppedEntry(entry: ScheduleEntry, date: string, minutes: number) {
+    setSelectedEntry({ ...entry, date, time: scheduleTimeLabel(minutes) });
+    setDraggedEntry(null);
+  }
 
   async function handleScheduleAction(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1166,6 +1227,9 @@ function ScheduleView({
           <button type="button" onClick={() => moveSchedule(1)}>
             Next
           </button>
+          <button type="button" className="quick-add-inline" onClick={onQuickCapture}>
+            + Quick Add
+          </button>
           <div className="mode-toggle" aria-label="Schedule view">
             <button type="button" className={mode === 'day' ? 'active' : ''} onClick={() => onModeChange('day')}>
               Day
@@ -1180,6 +1244,91 @@ function ScheduleView({
         </div>
       </div>
 
+      {mode !== 'month' && (
+        <div className="time-calendar">
+          <div className="time-calendar-header" style={{ gridTemplateColumns: `64px repeat(${calendarColumns}, minmax(190px, 1fr))` }}>
+            <span />
+            {dates.map((date) => (
+              <button key={date} type="button" className={date === todayKey() ? 'today' : ''} onClick={() => onDateChange(date)}>
+                <strong>{dateFromKey(date).toLocaleDateString([], { weekday: 'short' })}</strong>
+                <span>{dateFromKey(date).toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>
+              </button>
+            ))}
+          </div>
+          <div className="time-calendar-body">
+            <div className="time-axis" style={{ height: calendarHeight }}>
+              {hourTicks.map((minutes) => (
+                <span key={minutes} style={{ top: (minutes - calendarStartMinutes) / calendarSlotMinutes * calendarSlotHeight }}>
+                  {scheduleHourLabel(minutes)}
+                </span>
+              ))}
+            </div>
+            <div className="time-columns" style={{ gridTemplateColumns: `repeat(${calendarColumns}, minmax(190px, 1fr))`, height: calendarHeight }}>
+              {dates.map((date) => {
+                const dayEntries = entries.filter((entry) => entry.date === date);
+                const dayQueue = date === todayKey() ? unscheduledWalkIns : [];
+
+                return (
+                  <div className="time-day-column" key={date}>
+                    {timeSlots.map((minutes) => (
+                      <button
+                        type="button"
+                        className="time-slot-cell"
+                        key={`${date}-${minutes}`}
+                        style={{ top: (minutes - calendarStartMinutes) / calendarSlotMinutes * calendarSlotHeight, height: calendarSlotHeight }}
+                        aria-label={`${shortDateLabel(date)} ${scheduleTimeLabel(minutes)}`}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => {
+                          if (draggedEntry) openDroppedEntry(draggedEntry, date, minutes);
+                        }}
+                        onClick={() => {
+                          if (draggedEntry) openDroppedEntry(draggedEntry, date, minutes);
+                        }}
+                      />
+                    ))}
+                    {dayEntries.map((entry) => {
+                      const startMinutes = roundToScheduleSlot(minutesFromScheduleTime(entry.time));
+                      const top = Math.max(0, (startMinutes - calendarStartMinutes) / calendarSlotMinutes * calendarSlotHeight);
+                      const height = Math.max(calendarSlotHeight * 2, entryDuration(entry) / calendarSlotMinutes * calendarSlotHeight - 4);
+
+                      return (
+                        <button
+                          type="button"
+                          className={`time-event ${entry.tone}`}
+                          draggable
+                          key={`${entry.tone}-${entry.id}`}
+                          style={{ top, height }}
+                          onClick={() => setSelectedEntry(entry)}
+                          onDragStart={() => setDraggedEntry(entry)}
+                          onDragEnd={() => setDraggedEntry(null)}
+                        >
+                          <span>{entry.time}</span>
+                          <strong>{entry.title}</strong>
+                          <p>{entry.body}</p>
+                          {entry.tone === 'confirmed' && (
+                            <em>
+                              {entry.jobStatus.replace('_', ' ')}
+                              {entry.estimatedHours ? ` · ${entry.estimatedHours}h` : ''}
+                            </em>
+                          )}
+                        </button>
+                      );
+                    })}
+                    {dayQueue.map((item, index) => (
+                      <div className="time-event walk-in" key={item.id} style={{ top: index * 74 + 8, height: 66 }}>
+                        <span>Walk-in</span>
+                        <strong>{item.customer_name || item.vehicle_description || item.phone || 'Quick capture'}</strong>
+                        <p>{item.service_needed || item.quick_note}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {mode === 'month' && (
         <div className="month-weekdays" aria-hidden="true">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
@@ -1188,7 +1337,7 @@ function ScheduleView({
         </div>
       )}
 
-      <div className={mode === 'day' ? 'schedule-grid day' : mode === 'week' ? 'schedule-grid week' : 'schedule-grid month'}>
+      {mode === 'month' && <div className="schedule-grid month">
         {dates.map((date) => {
           const dayEntries = entries.filter((entry) => entry.date === date);
           const dayQueue = date === todayKey() ? unscheduledWalkIns : [];
@@ -1247,7 +1396,7 @@ function ScheduleView({
             </article>
           );
         })}
-      </div>
+      </div>}
       {selectedEntry && (
         <div className="modal-backdrop" role="presentation" onMouseDown={() => setSelectedEntry(null)}>
           <section className="job-modal" role="dialog" aria-modal="true" aria-labelledby="job-modal-title" onMouseDown={(event) => event.stopPropagation()}>
@@ -1516,6 +1665,7 @@ function AvailabilityPanel({
               <label>
                 <span>Slot interval</span>
                 <select name="slot_interval_minutes" defaultValue={selectedSpecialHour?.slot_interval_minutes || 60}>
+                  <option value="15">15 minutes</option>
                   <option value="30">30 minutes</option>
                   <option value="45">45 minutes</option>
                   <option value="60">60 minutes</option>
@@ -1567,6 +1717,7 @@ function AvailabilityPanel({
               <label>
                 <span>Slot interval</span>
                 <select name="slot_interval_minutes" defaultValue={selectedShopHour.slot_interval_minutes}>
+                  <option value="15">15 minutes</option>
                   <option value="30">30 minutes</option>
                   <option value="45">45 minutes</option>
                   <option value="60">60 minutes</option>
@@ -1592,16 +1743,99 @@ function AvailabilityPanel({
 function QuickCapturePanel({
   quickStatus,
   open,
+  modalOnly = false,
   onOpen,
   onClose,
   onSubmit
 }: {
   quickStatus: string;
   open: boolean;
+  modalOnly?: boolean;
   onOpen: () => void;
   onClose: () => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }) {
+  const modal = open ? (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section className="job-modal quick-capture-modal" role="dialog" aria-modal="true" aria-labelledby="quick-capture-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="job-modal-header">
+          <div>
+            <p>Fast intake</p>
+            <h3 id="quick-capture-title">Quick Capture</h3>
+            <span>Capture what is known now. Complete the record later.</span>
+          </div>
+          <button type="button" aria-label="Close quick capture" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        <form className="quick-capture-form" onSubmit={onSubmit}>
+          <label className="wide">
+            <span>Quick note</span>
+            <textarea name="quick_note" placeholder="Say or type: John, 604-555-1234, red Civic, oil change, waiting" required />
+          </label>
+          <details className="quick-details">
+            <summary>Optional details</summary>
+            <div>
+              <label>
+                <span>Name</span>
+                <input name="customer_name" />
+              </label>
+              <label>
+                <span>Phone</span>
+                <input name="phone" type="tel" />
+              </label>
+              <label>
+                <span>Email</span>
+                <input name="email" type="email" />
+              </label>
+              <label>
+                <span>Vehicle</span>
+                <input name="vehicle_description" />
+              </label>
+              <label>
+                <span>Plate</span>
+                <input name="license_plate" />
+              </label>
+              <label>
+                <span>VIN</span>
+                <input name="vin" />
+              </label>
+              <label>
+                <span>Service</span>
+                <input name="service_needed" />
+              </label>
+              <label>
+                <span>Status</span>
+                <select name="waiting_status">
+                  <option value="">Unknown</option>
+                  <option value="waiting">Waiting</option>
+                  <option value="dropped_off">Dropped off</option>
+                </select>
+              </label>
+              <label>
+                <span>Priority</span>
+                <select name="priority">
+                  <option value="">Normal</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </label>
+            </div>
+          </details>
+          <div className="quick-capture-actions">
+            <button type="submit">Save</button>
+            <button type="button" onClick={onClose}>
+              Cancel
+            </button>
+          </div>
+          <p role="status">{quickStatus}</p>
+        </form>
+      </section>
+    </div>
+  ) : null;
+
+  if (modalOnly) return modal;
+
   return (
     <section className="quick-capture-panel">
       <div className="quick-capture-heading">
@@ -1613,84 +1847,7 @@ function QuickCapturePanel({
           + Quick Add
         </button>
       </div>
-      {open && (
-        <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-          <section className="job-modal quick-capture-modal" role="dialog" aria-modal="true" aria-labelledby="quick-capture-title" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="job-modal-header">
-              <div>
-                <p>Fast intake</p>
-                <h3 id="quick-capture-title">Quick Capture</h3>
-                <span>Capture what is known now. Complete the record later.</span>
-              </div>
-              <button type="button" aria-label="Close quick capture" onClick={onClose}>
-                Close
-              </button>
-            </div>
-            <form className="quick-capture-form" onSubmit={onSubmit}>
-              <label className="wide">
-                <span>Quick note</span>
-                <textarea name="quick_note" placeholder="Say or type: John, 604-555-1234, red Civic, oil change, waiting" required />
-              </label>
-              <details className="quick-details">
-                <summary>Optional details</summary>
-                <div>
-                  <label>
-                    <span>Name</span>
-                    <input name="customer_name" />
-                  </label>
-                  <label>
-                    <span>Phone</span>
-                    <input name="phone" type="tel" />
-                  </label>
-                  <label>
-                    <span>Email</span>
-                    <input name="email" type="email" />
-                  </label>
-                  <label>
-                    <span>Vehicle</span>
-                    <input name="vehicle_description" />
-                  </label>
-                  <label>
-                    <span>Plate</span>
-                    <input name="license_plate" />
-                  </label>
-                  <label>
-                    <span>VIN</span>
-                    <input name="vin" />
-                  </label>
-                  <label>
-                    <span>Service</span>
-                    <input name="service_needed" />
-                  </label>
-                  <label>
-                    <span>Status</span>
-                    <select name="waiting_status">
-                      <option value="">Unknown</option>
-                      <option value="waiting">Waiting</option>
-                      <option value="dropped_off">Dropped off</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Priority</span>
-                    <select name="priority">
-                      <option value="">Normal</option>
-                      <option value="high">High</option>
-                      <option value="urgent">Urgent</option>
-                    </select>
-                  </label>
-                </div>
-              </details>
-              <div className="quick-capture-actions">
-                <button type="submit">Save</button>
-                <button type="button" onClick={onClose}>
-                  Cancel
-                </button>
-              </div>
-              <p role="status">{quickStatus}</p>
-            </form>
-          </section>
-        </div>
-      )}
+      {modal}
     </section>
   );
 }

@@ -329,6 +329,12 @@ a {
   border-color: var(--dashboard-gold);
 }
 
+.schedule-controls .quick-add-inline {
+  color: #111827;
+  background: var(--dashboard-gold);
+  border-color: var(--dashboard-gold);
+}
+
 .mode-toggle {
   display: inline-flex;
   overflow: hidden;
@@ -345,6 +351,180 @@ a {
 .mode-toggle button.active {
   color: #fff;
   background: var(--dashboard-blue);
+}
+
+.time-calendar {
+  background: #fff;
+}
+
+.time-calendar-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: grid;
+  min-width: max-content;
+  border-bottom: 1px solid var(--dashboard-line);
+  background: #fff;
+}
+
+.time-calendar-header > span {
+  border-right: 1px solid var(--dashboard-line);
+}
+
+.time-calendar-header button {
+  min-height: 62px;
+  border: 0;
+  border-right: 1px solid var(--dashboard-line);
+  background: #fff;
+  color: var(--dashboard-ink);
+  text-align: left;
+  padding: 10px 12px;
+}
+
+.time-calendar-header button.today {
+  color: var(--dashboard-blue);
+  background: #eff6ff;
+}
+
+.time-calendar-header strong,
+.time-calendar-header span {
+  display: block;
+}
+
+.time-calendar-header strong {
+  font-size: 13px;
+}
+
+.time-calendar-header span {
+  margin-top: 3px;
+  color: var(--dashboard-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.time-calendar-body {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  max-height: min(760px, calc(100vh - 330px));
+  min-height: 520px;
+  overflow: auto;
+}
+
+.time-axis {
+  position: relative;
+  border-right: 1px solid var(--dashboard-line);
+  background: #fff;
+}
+
+.time-axis span {
+  position: absolute;
+  right: 9px;
+  transform: translateY(-8px);
+  color: var(--dashboard-muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.time-columns {
+  display: grid;
+  min-width: max-content;
+}
+
+.time-day-column {
+  position: relative;
+  min-width: 190px;
+  border-right: 1px solid var(--dashboard-line);
+  background:
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.2) 1px, transparent 1px) 0 0 / 100% 88px,
+    linear-gradient(to bottom, rgba(226, 232, 240, 0.9) 1px, transparent 1px) 0 0 / 100% 22px,
+    #fff;
+}
+
+.time-slot-cell {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: crosshair;
+}
+
+.time-slot-cell:hover,
+.time-slot-cell:focus-visible {
+  outline: 0;
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.time-event {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  z-index: 1;
+  overflow: hidden;
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-left: 4px solid var(--dashboard-blue);
+  border-radius: 7px;
+  padding: 6px 8px;
+  background: #eff6ff;
+  color: var(--dashboard-ink);
+  text-align: left;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+  cursor: grab;
+}
+
+.time-event.confirmed {
+  border-color: rgba(22, 163, 74, 0.24);
+  border-left-color: var(--dashboard-green);
+  background: #ecfdf5;
+}
+
+.time-event.walk-in {
+  border-color: rgba(245, 158, 11, 0.28);
+  border-left-color: var(--dashboard-gold);
+  background: #fffbeb;
+  cursor: default;
+}
+
+.time-event:active {
+  cursor: grabbing;
+}
+
+.time-event span,
+.time-event strong,
+.time-event p,
+.time-event em {
+  display: block;
+}
+
+.time-event span {
+  color: var(--dashboard-muted);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.time-event strong {
+  overflow: hidden;
+  margin-top: 2px;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-event p,
+.time-event em {
+  overflow: hidden;
+  margin: 2px 0 0;
+  color: var(--dashboard-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-event em {
+  font-style: normal;
+  font-weight: 850;
+  text-transform: capitalize;
 }
 
 .schedule-grid {
@@ -1317,6 +1497,24 @@ a {
     justify-content: stretch;
   }
 
+  .time-calendar {
+    overflow-x: auto;
+  }
+
+  .time-calendar-body {
+    max-height: 68vh;
+    min-height: 520px;
+  }
+
+  .time-calendar-header {
+    position: static;
+  }
+
+  .time-day-column,
+  .time-calendar-header button {
+    min-width: 176px;
+  }
+
   .schedule-grid.month,
   .month-weekdays {
     grid-template-columns: repeat(7, minmax(96px, 1fr));
@@ -1324,6 +1522,7 @@ a {
 
   .schedule-controls button,
   .mode-toggle,
+  .schedule-controls .quick-add-inline,
   .quick-capture-heading button,
   .availability-toolbar button,
   .availability-actions {

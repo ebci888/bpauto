@@ -71,8 +71,8 @@ export const shopHourSchema = z.object({
   is_open: z.coerce.boolean().optional().default(false),
   opens_at: z.string().optional().default(''),
   closes_at: z.string().optional().default(''),
-  slot_interval_minutes: z.coerce.number().int().refine((value) => [30, 45, 60, 90, 120].includes(value), {
-    message: 'Slot interval must be 30, 45, 60, 90, or 120 minutes.'
+  slot_interval_minutes: z.coerce.number().int().refine((value) => [15, 30, 45, 60, 90, 120].includes(value), {
+    message: 'Slot interval must be 15, 30, 45, 60, 90, or 120 minutes.'
   })
 });
 

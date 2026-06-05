@@ -92,12 +92,16 @@ Built views:
 
 Current schedule behavior:
 
-- Requested bookings show as schedule cards.
-- Confirmed appointments show as schedule cards.
+- Day and week views use a scrollable time-grid layout similar to Google Calendar.
+- Internal time slots are shown in 15-minute increments.
+- Requested bookings show as calendar blocks.
+- Confirmed appointments show as calendar blocks.
 - Walk-ins/quick captures show as today items.
-- Cards can be clicked to open an action panel.
-- Week/month cards can be dragged onto another day.
-- Dropping a card opens the action panel so the owner confirms exact date/time.
+- Calendar blocks can be clicked to open an action modal.
+- Day/week blocks can be dragged onto another date/time slot.
+- Month blocks can be dragged onto another day.
+- Dropping a block opens the action modal so the owner confirms exact date/time before saving.
+- `+ Quick Add` is available from the schedule toolbar and opens the quick capture modal without taking over the schedule page.
 
 Current appointment actions:
 
