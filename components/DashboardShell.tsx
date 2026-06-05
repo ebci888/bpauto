@@ -11,7 +11,7 @@ type Props = {
 };
 
 type Tab = 'schedule' | 'queue' | 'bookings' | 'customers' | 'vehicles' | 'cleanup' | 'notifications';
-type ScheduleMode = 'day' | 'week';
+type ScheduleMode = 'day' | 'week' | 'month';
 type ScheduleEntry = {
   id: string;
   date: string;
@@ -67,12 +67,31 @@ function weekDays(anchorKey: string) {
   return Array.from({ length: 7 }, (_, index) => dateKey(new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + index)));
 }
 
+function monthDays(anchorKey: string) {
+  const anchor = dateFromKey(anchorKey);
+  const firstOfMonth = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const startOffset = firstOfMonth.getDay();
+  const start = new Date(firstOfMonth);
+  start.setDate(firstOfMonth.getDate() - startOffset);
+  return Array.from({ length: 42 }, (_, index) => dateKey(new Date(start.getFullYear(), start.getMonth(), start.getDate() + index)));
+}
+
 function shortDateLabel(key: string) {
   return dateFromKey(key).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function longDateLabel(key: string) {
   return dateFromKey(key).toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+function monthLabel(key: string) {
+  return dateFromKey(key).toLocaleDateString([], { month: 'long', year: 'numeric' });
+}
+
+function scheduleTitle(mode: ScheduleMode, key: string) {
+  if (mode === 'day') return longDateLabel(key);
+  if (mode === 'week') return 'This Week';
+  return monthLabel(key);
 }
 
 export function DashboardShell({ initialData, staffEmail, staffRole }: Props) {
@@ -381,8 +400,19 @@ function ScheduleView({
   const [draggedEntry, setDraggedEntry] = useState<ScheduleEntry | null>(null);
   const [actionStatus, setActionStatus] = useState('');
   const bookingMap = new Map(bookings.map((booking) => [booking.id, booking]));
-  const dates = mode === 'day' ? [selectedDate] : weekDays(selectedDate);
-  const step = mode === 'day' ? 1 : 7;
+  const dates = mode === 'day' ? [selectedDate] : mode === 'week' ? weekDays(selectedDate) : monthDays(selectedDate);
+  const step = mode === 'day' ? 1 : mode === 'week' ? 7 : 0;
+  const selectedMonth = dateFromKey(selectedDate).getMonth();
+
+  function moveSchedule(direction: -1 | 1) {
+    if (mode === 'month') {
+      const date = dateFromKey(selectedDate);
+      date.setMonth(date.getMonth() + direction);
+      onDateChange(dateKey(date));
+      return;
+    }
+    onDateChange(addDays(selectedDate, step * direction));
+  }
 
   const requestedEntries: ScheduleEntry[] = bookings
     .filter((booking) => booking.status === 'requested')
@@ -447,16 +477,16 @@ function ScheduleView({
       <div className="schedule-header">
         <div>
           <p>Calendar</p>
-          <h2>{mode === 'day' ? longDateLabel(selectedDate) : 'This Week'}</h2>
+          <h2>{scheduleTitle(mode, selectedDate)}</h2>
         </div>
         <div className="schedule-controls">
-          <button type="button" onClick={() => onDateChange(addDays(selectedDate, -step))}>
+          <button type="button" onClick={() => moveSchedule(-1)}>
             Prev
           </button>
           <button type="button" onClick={() => onDateChange(todayKey())}>
             Today
           </button>
-          <button type="button" onClick={() => onDateChange(addDays(selectedDate, step))}>
+          <button type="button" onClick={() => moveSchedule(1)}>
             Next
           </button>
           <div className="mode-toggle" aria-label="Schedule view">
@@ -466,18 +496,30 @@ function ScheduleView({
             <button type="button" className={mode === 'week' ? 'active' : ''} onClick={() => onModeChange('week')}>
               Week
             </button>
+            <button type="button" className={mode === 'month' ? 'active' : ''} onClick={() => onModeChange('month')}>
+              Month
+            </button>
           </div>
         </div>
       </div>
 
-      <div className={mode === 'day' ? 'schedule-grid day' : 'schedule-grid week'}>
+      {mode === 'month' && (
+        <div className="month-weekdays" aria-hidden="true">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+            <span key={day}>{day}</span>
+          ))}
+        </div>
+      )}
+
+      <div className={mode === 'day' ? 'schedule-grid day' : mode === 'week' ? 'schedule-grid week' : 'schedule-grid month'}>
         {dates.map((date) => {
           const dayEntries = entries.filter((entry) => entry.date === date);
           const dayQueue = date === todayKey() ? unscheduledWalkIns : [];
+          const isOutsideMonth = mode === 'month' && dateFromKey(date).getMonth() !== selectedMonth;
 
           return (
             <article
-              className="schedule-day"
+              className={`schedule-day ${isOutsideMonth ? 'outside-month' : ''}`}
               key={date}
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => {

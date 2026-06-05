@@ -348,11 +348,36 @@ a {
   overflow-x: auto;
 }
 
+.month-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(110px, 1fr));
+  gap: 8px;
+  padding: 14px 18px 0;
+  color: var(--dashboard-muted);
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.schedule-grid.month {
+  grid-template-columns: repeat(7, minmax(110px, 1fr));
+  gap: 8px;
+  overflow-x: auto;
+}
+
 .schedule-day {
   min-height: 220px;
   border: 1px solid var(--dashboard-line);
   border-radius: 10px;
   background: #f8fafc;
+}
+
+.schedule-grid.month .schedule-day {
+  min-height: 136px;
+}
+
+.schedule-day.outside-month {
+  opacity: 0.55;
 }
 
 .schedule-day-heading {
@@ -382,6 +407,11 @@ a {
   padding: 10px;
 }
 
+.schedule-grid.month .schedule-events {
+  gap: 5px;
+  padding: 7px;
+}
+
 .schedule-event {
   width: 100%;
   border: 0;
@@ -393,6 +423,20 @@ a {
   color: var(--dashboard-ink);
   text-align: left;
   cursor: grab;
+}
+
+.schedule-grid.month .schedule-event {
+  padding: 7px;
+}
+
+.schedule-grid.month .schedule-event p {
+  display: none;
+}
+
+.schedule-grid.month .schedule-event strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .schedule-event:active {
@@ -437,6 +481,11 @@ a {
   display: grid;
   min-height: 150px;
   place-items: center;
+}
+
+.schedule-grid.month .schedule-empty {
+  min-height: 76px;
+  font-size: 12px;
 }
 
 .schedule-action-panel {
@@ -758,6 +807,11 @@ a {
 
   .schedule-controls {
     justify-content: stretch;
+  }
+
+  .schedule-grid.month,
+  .month-weekdays {
+    grid-template-columns: repeat(7, minmax(96px, 1fr));
   }
 
   .schedule-controls button,

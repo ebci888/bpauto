@@ -3,8 +3,12 @@
 ## Scheduling
 
 - Let the owner click schedule cards to confirm or reschedule.
-- Let the owner drag cards in week view, then confirm the new day/time.
+- Let the owner drag cards in week/month view, then confirm the new day/time.
 - Log customer notification intent for confirmation and reschedule changes.
+- Add multi-day jobs for repairs that stay in the shop.
+- Track job status: scheduled, in progress, waiting for parts, paused, ready, complete.
+- Track estimated hours, actual time spent, and billable hours.
+- Add visit notes/work notes for each vehicle visit.
 
 ## Customer SMS Flow
 
@@ -26,3 +30,18 @@
   - ask customer to check in
   - mark vehicle ready
   - request approval for next step
+
+## Labor Guide / Book Time
+
+- Treat "book time" as a reference value, not a hard schedule block.
+- Capture:
+  - labor guide source
+  - standard/book hours
+  - quoted hours
+  - actual hours
+  - billable hours
+- Research/integration candidates:
+  - ALLDATA parts and labor times
+  - Mitchell 1 / ProDemand labor estimating
+  - MOTOR labor guide data
+- Keep MVP manual-entry first; do not integrate paid labor data until the shop confirms what they already use.
