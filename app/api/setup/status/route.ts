@@ -68,6 +68,9 @@ export async function GET() {
   const readyForLogin =
     supabasePublicConfigured && supabaseAdminConfigured && migrationApplied && Boolean(process.env.OWNER_EMAIL) && ownerProfileExists;
   const readyForMessaging = notificationSetup.brevo.ready || notificationSetup.twilio.ready;
+  const turnstileSiteKeyConfigured = Boolean(process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY);
+  const turnstileSecretConfigured = Boolean(process.env.TURNSTILE_SECRET_KEY);
+  const turnstileRequired = process.env.TURNSTILE_REQUIRED === 'true';
 
   return NextResponse.json({
     ok: readyForLogin,
@@ -90,6 +93,13 @@ export async function GET() {
       brevoConfigured: notificationSetup.brevo.ready,
       twilioConfigured: notificationSetup.twilio.ready,
       readyForMessaging
+    },
+    antiSpam: {
+      bookingSpamShieldEnabled: migrationApplied && existingTables.includes('booking_submission_events'),
+      turnstileSiteKeyConfigured,
+      turnstileSecretConfigured,
+      turnstileRequired,
+      readyForRequiredTurnstile: !turnstileRequired || (turnstileSiteKeyConfigured && turnstileSecretConfigured)
     },
     nextStep: readyForLogin
       ? 'Create or sign in with the owner account, then test /dashboard.'

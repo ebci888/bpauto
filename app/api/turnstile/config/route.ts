@@ -1,0 +1,13 @@
+import { NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET() {
+  const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
+
+  return NextResponse.json({
+    enabled: Boolean(siteKey),
+    siteKey,
+    required: process.env.TURNSTILE_REQUIRED === 'true'
+  });
+}

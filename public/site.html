@@ -214,6 +214,15 @@
     }
     .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--blue); }
     .form-group textarea { resize: vertical; min-height: 80px; }
+    .turnstile-wrap {
+      display: none;
+      justify-content: center;
+      min-height: 68px;
+      margin: 6px 0 14px;
+    }
+    .turnstile-wrap.active {
+      display: flex;
+    }
     .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
     .cal-header span { color: var(--text); font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 13px; }
     .cal-nav { background: var(--light); border: 1px solid var(--border); color: var(--muted); width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 14px; }
@@ -844,6 +853,9 @@
         </div>
         <input type="hidden" name="preferred_time" id="preferredTime" required />
         <div class="form-group"><label>Notes (optional)</label><textarea name="notes" placeholder="Describe symptoms or any extra details about your vehicle…"></textarea></div>
+        <div class="turnstile-wrap" id="turnstileWrap">
+          <div id="turnstileWidget"></div>
+        </div>
         <button class="btn btn-blue" type="submit" style="width:100%;justify-content:center;padding:14px;font-size:15px;border-radius:10px;">
           Send Booking Request →
         </button>
@@ -1148,10 +1160,68 @@
   const preferredTime = document.getElementById('preferredTime');
   const timeSlots = document.getElementById('timeSlots');
   const bookingStartedAt = document.getElementById('bookingStartedAt');
+  const turnstileWrap = document.getElementById('turnstileWrap');
+  const turnstileResponse = document.getElementById('turnstileResponse');
   if (bookingStartedAt) bookingStartedAt.value = String(Date.now());
+  let turnstileRequired = false;
+  let turnstileWidgetId = null;
   let monthAvailabilityKey = '';
   let monthAvailabilityLoadingKey = '';
   let monthAvailability = {};
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      if (document.querySelector(`script[src="${src}"]`)) {
+        resolve();
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = src;
+      script.async = true;
+      script.defer = true;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  async function setupTurnstile() {
+    try {
+      const response = await fetch('/api/turnstile/config');
+      if (!response.ok) return;
+      const config = await response.json();
+      turnstileRequired = Boolean(config.required);
+      if (!config.enabled || !config.siteKey || !turnstileWrap) return;
+
+      await loadScript('https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit');
+      if (!window.turnstile || turnstileWidgetId !== null) return;
+
+      turnstileWrap.classList.add('active');
+      turnstileWidgetId = window.turnstile.render('#turnstileWidget', {
+        sitekey: config.siteKey,
+        callback: (token) => {
+          if (turnstileResponse) turnstileResponse.value = token;
+        },
+        'expired-callback': () => {
+          if (turnstileResponse) turnstileResponse.value = '';
+        },
+        'error-callback': () => {
+          if (turnstileResponse) turnstileResponse.value = '';
+        }
+      });
+    } catch {
+      turnstileRequired = false;
+    }
+  }
+
+  function resetTurnstile() {
+    if (turnstileResponse) turnstileResponse.value = '';
+    if (window.turnstile && turnstileWidgetId !== null) {
+      window.turnstile.reset(turnstileWidgetId);
+    }
+  }
+
+  setupTurnstile();
 
   function selectedMonthKey() {
     return `${cYear}-${String(cMonth + 1).padStart(2, '0')}`;
@@ -1275,6 +1345,11 @@
       bookingStatus.style.color = '#dc2626';
       return;
     }
+    if (turnstileRequired && turnstileResponse && !turnstileResponse.value) {
+      bookingStatus.textContent = 'Please complete the security check before sending.';
+      bookingStatus.style.color = '#dc2626';
+      return;
+    }
     const submitButton = bookingForm.querySelector('button[type="submit"]');
     if (bookingStartedAt && !bookingStartedAt.value) bookingStartedAt.value = String(Date.now());
     const payload = Object.fromEntries(new FormData(bookingForm).entries());
@@ -1297,6 +1372,7 @@
       bookingStatus.style.color = '#166534';
       bookingForm.reset();
       if (bookingStartedAt) bookingStartedAt.value = String(Date.now());
+      resetTurnstile();
       preferredDate.value = '';
       preferredTime.value = '';
       selDay = null;

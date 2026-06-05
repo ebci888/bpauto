@@ -202,12 +202,13 @@ Built behavior:
 - Clean submissions keep the normal flow: customer, vehicle, booking request, queue item, owner alert, and customer confirmation logs.
 - Public availability ignores suspected spam bookings, so spam cannot quietly fill the public calendar.
 - The public booking form includes hidden honeypot fields and a form timing signal.
-- Turnstile server verification is supported when `TURNSTILE_SECRET_KEY` is configured. Set `TURNSTILE_REQUIRED=true` only after the widget is added to the public form.
+- Turnstile server verification is supported when `TURNSTILE_SECRET_KEY` is configured.
+- The public booking form loads the Cloudflare Turnstile widget when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` exists.
+- Set `TURNSTILE_REQUIRED=true` only after `NEXT_PUBLIC_TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` are both configured and a real test booking succeeds.
 - IP/user-agent/email/phone fingerprints are hashed before storage; raw IP addresses are not stored.
 
 Future hardening:
 
-- Add visible/invisible Cloudflare Turnstile widget once `TURNSTILE_SITE_KEY` is available.
 - Add a dashboard spam filter/release action for suspected bookings.
 - Add Netlify edge/function rate limits in production.
 
