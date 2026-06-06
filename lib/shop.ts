@@ -528,6 +528,19 @@ export async function createWebsiteBooking(raw: unknown, context: BookingSpamCon
       body: `BP Auto Repair received your request ${booking.reference} for ${input.preferred_date} at ${input.preferred_time}. We will confirm soon.`
     })
   ]);
+  const customerSmsFailureAlert =
+    customerSms.status === 'failed'
+      ? await createNotification({
+          bookingRequestId: booking.id,
+          channel: 'owner_alert',
+          eventType: 'customer_request_sms_failed_owner_alert',
+          recipient: 'owner',
+          subject: `Customer SMS failed for ${booking.reference}`,
+          body: `Customer SMS failed for request ${booking.reference}. Customer: ${customerName}. Phone ending ${input.phone.slice(-4)}. Reason: ${
+            customerSms.error || 'Unknown SMS failure'
+          }`
+        })
+      : null;
 
   return {
     booking,
@@ -537,7 +550,8 @@ export async function createWebsiteBooking(raw: unknown, context: BookingSpamCon
     notifications: {
       owner_alert: ownerAlert,
       customer_email: customerEmail,
-      customer_sms: customerSms
+      customer_sms: customerSms,
+      customer_sms_failure_alert: customerSmsFailureAlert
     }
   };
 }
