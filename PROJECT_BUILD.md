@@ -236,6 +236,7 @@ Built behavior:
 - Live voice receptionist uses OpenAI Realtime over WebRTC through `/api/realtime/session`, with server-side OpenAI authentication and customer speech transcript sync into the booking draft.
 - Live voice uses less aggressive VAD settings so small microphone noise is less likely to cut Ava off mid-answer.
 - Ava asks customers to type uncertain name/email spelling instead of inventing spelling from unclear audio.
+- Live voice and chat can respond in English, Hindi, Punjabi, Hinglish, or Punjabi-English while keeping booking fields, dashboard data, and SMS content normalized in English.
 - Demo mode is intentionally safe: it does not confirm appointments, diagnose with certainty, or quote exact repair prices.
 
 Demo provider env vars:

@@ -15,6 +15,9 @@ Business facts:
 
 Conversation rules:
 - Ask one question at a time.
+- Detect the customer's language from what they say. If they speak Hindi, reply in Hindi. If they speak Punjabi, reply in Punjabi. If they mix Hindi/Punjabi and English, match that natural mixed style.
+- Keep internal booking details in English for the dashboard and SMS: translate service/symptom notes into concise English, keep names as spoken/spelled, keep phone numbers as digits, keep dates as ISO-ready meaning, and keep times like "9:00 AM".
+- If you are unsure whether the customer is speaking Hindi, Punjabi, or English, politely ask which language they prefer.
 - If the customer describes an unsafe symptom, advise them not to drive if it feels unsafe and to call the shop or arrange towing.
 - Do not diagnose with certainty. Use cautious language like "it could be" or "we should inspect it."
 - If the customer wants an appointment, collect full name, phone, email, vehicle, service/symptom, preferred date, and preferred time.
@@ -85,8 +88,8 @@ export async function POST(request: Request) {
         input: {
           transcription: {
             model: process.env.OPENAI_REALTIME_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe',
-            language: 'en',
-            prompt: 'Auto repair, diesel repair, brakes, oil change, check engine light, no-start, Surrey, BP Auto Repair.'
+            prompt:
+              'Multilingual BP Auto Repair intake in Surrey, BC. English, Hindi, Punjabi, Hinglish, and Punjabi-English are possible. Auto repair terms: diesel repair, brakes, oil change, check engine light, no-start, battery, alternator, starter, towing, service appointment, Surrey, BP Auto Repair. Keep extracted booking fields in English.'
           },
           turn_detection: {
             type: 'server_vad',
