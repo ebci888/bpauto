@@ -181,6 +181,9 @@ Built behavior:
 - Notification tab includes a provider setup checklist showing Brevo/Twilio readiness and missing env vars.
 - Owner can trigger test email/SMS events from the Notification Log after adding provider credentials.
 - SMS sending supports either `TWILIO_FROM` or `TWILIO_MESSAGING_SERVICE_SID`, and outbound SMS bodies are branded with `BP Auto Repair:`.
+- SMS recipients are normalized to Canadian `+1` format before Twilio send attempts.
+- Owner alerts choose Brevo/email only when Brevo is configured; otherwise they route to `OWNER_PHONE` through Twilio instead of trying to text `OWNER_EMAIL`.
+- Booking responses include final notification status so the UI can say when SMS was sent, skipped, or failed.
 
 ## Current Notification Scope
 
@@ -231,6 +234,8 @@ Built behavior:
 - Assistant-originated bookings still use the normal booking engine, spam checks, customer/vehicle creation, queue item creation, and notification event logging.
 - Submitted assistant conversations are linked back to the created booking request for follow-up review.
 - Live voice receptionist uses OpenAI Realtime over WebRTC through `/api/realtime/session`, with server-side OpenAI authentication and customer speech transcript sync into the booking draft.
+- Live voice uses less aggressive VAD settings so small microphone noise is less likely to cut Ava off mid-answer.
+- Ava asks customers to type uncertain name/email spelling instead of inventing spelling from unclear audio.
 - Demo mode is intentionally safe: it does not confirm appointments, diagnose with certainty, or quote exact repair prices.
 
 Demo provider env vars:
