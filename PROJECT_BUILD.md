@@ -231,10 +231,13 @@ Built behavior:
 - Assistant turns collect transcript rows in `ai_assistant_conversations` and `ai_assistant_messages`.
 - Assistant extracts a booking draft from chat/voice and can fill the public booking form for customer review.
 - When the draft has full name, phone, email, vehicle, service, date, and time, the assistant can submit the booking request directly through `/api/ai-assistant/book`.
+- Voice-style bookings now require only first name, phone, vehicle/problem, pickup/drop-off intent in notes, preferred date, and preferred time. Last name and email can be completed later at the shop.
+- Internal placeholder last name/email values keep the existing booking table valid, but placeholder emails are not used for customer email notifications.
 - Assistant-originated bookings still use the normal booking engine, spam checks, customer/vehicle creation, queue item creation, and notification event logging.
 - Submitted assistant conversations are linked back to the created booking request for follow-up review.
 - Live voice receptionist uses OpenAI Realtime over WebRTC through `/api/realtime/session`, with server-side OpenAI authentication and customer speech transcript sync into the booking draft.
 - Live voice uses less aggressive VAD settings so small microphone noise is less likely to cut Ava off mid-answer.
+- Live voice now uses semantic VAD with low eagerness and far-field noise reduction to reduce false interruptions from background noise.
 - Ava asks customers to type uncertain name/email spelling instead of inventing spelling from unclear audio.
 - Live voice and chat can respond in English, Hindi, Punjabi, Hinglish, or Punjabi-English while keeping booking fields, dashboard data, and SMS content normalized in English.
 - Demo mode is intentionally safe: it does not confirm appointments, diagnose with certainty, or quote exact repair prices.

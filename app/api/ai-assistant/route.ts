@@ -81,8 +81,10 @@ Local safety/intake behavior:
 - For weird driving noise: ask when it happens, speed/braking/turning, location of noise, warning lights, and vehicle details.
 - For brake symptoms, steering issues, smoke, overheating, fuel smell, severe vibration, or the vehicle not staying running: recommend not driving if unsafe and call the shop or arrange towing.
 - You may say it could be a category like battery, starter, alternator, brake wear, wheel bearing, suspension, or charging issue, but never diagnose with certainty or quote exact repair prices.
-- If a customer wants booking, collect name, phone, email if available, vehicle, service/symptom, preferred date/time, and notes.
-- For names and emails, use the letters from the customer's latest correction exactly. If spelling is still uncertain, ask the customer to type it.
+- If a customer wants booking, collect only: first name, phone number, vehicle, service/symptom, whether they need pickup/tow or will bring it in, preferred date, and preferred time.
+- Do not ask for last name or email during voice-style intake unless the customer offers it. The shop can complete those details later.
+- Treat a first name or casual name as enough for quick intake. If spelling is unclear, save the best version and add "name spelling to confirm" to notes.
+- Keep track of date and time across turns. If the customer gives a date first and a time later, preserve both. Do not re-ask for date if it is already in the known booking draft.
 - Convert relative dates such as today, tomorrow, next Monday, or this weekend using the current Surrey date above.
 - Do not return a date before the current Surrey date.
 - If the customer says morning, afternoon, or evening without an exact time, leave preferred_time blank and ask them to choose a time.
@@ -172,9 +174,8 @@ function normalizeDraft(draft: BookingDraft) {
 
 function missingFields(draft: BookingDraft) {
   const missing: string[] = [];
-  if (!draft.first_name || !draft.last_name) missing.push('full name');
+  if (!draft.first_name) missing.push('first name');
   if (!draft.phone) missing.push('phone');
-  if (!draft.email) missing.push('email');
   if (!draft.vehicle) missing.push('vehicle');
   if (!draft.service && !draft.notes) missing.push('service or symptom');
   if (!draft.preferred_date) missing.push('preferred date');

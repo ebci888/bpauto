@@ -90,6 +90,10 @@ export class BookingSpamBlockedError extends Error {
   }
 }
 
+function isPlaceholderEmail(value: string | null | undefined) {
+  return clean(value).toLowerCase().endsWith('@bpauto.example');
+}
+
 function minutesFromTime(value: string) {
   const cleaned = clean(value);
   const meridianMatch = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
@@ -503,6 +507,16 @@ export async function createWebsiteBooking(raw: unknown, context: BookingSpamCon
     .single();
   if (queueError) throw queueError;
 
+  const customerEmailPromise = isPlaceholderEmail(input.email)
+    ? Promise.resolve(null)
+    : createNotification({
+        bookingRequestId: booking.id,
+        channel: 'email',
+        eventType: 'customer_request_received_email',
+        recipient: input.email,
+        subject: `BP Auto Repair received your request ${booking.reference}`,
+        body: `Hi ${input.first_name}, we received your ${input.service} request for ${input.preferred_date} at ${input.preferred_time}. The shop will confirm the appointment soon.`
+      });
   const [ownerAlert, customerEmail, customerSms] = await Promise.all([
     createNotification({
       bookingRequestId: booking.id,
@@ -512,14 +526,7 @@ export async function createWebsiteBooking(raw: unknown, context: BookingSpamCon
       subject: `New booking request ${booking.reference}`,
       body: `${customerName} requested ${input.service} for ${input.vehicle} on ${input.preferred_date} at ${input.preferred_time}. Phone: ${input.phone}.`
     }),
-    createNotification({
-      bookingRequestId: booking.id,
-      channel: 'email',
-      eventType: 'customer_request_received_email',
-      recipient: input.email,
-      subject: `BP Auto Repair received your request ${booking.reference}`,
-      body: `Hi ${input.first_name}, we received your ${input.service} request for ${input.preferred_date} at ${input.preferred_time}. The shop will confirm the appointment soon.`
-    }),
+    customerEmailPromise,
     createNotification({
       bookingRequestId: booking.id,
       channel: 'sms',
@@ -692,15 +699,17 @@ export async function confirmBookingRequest(id: string, raw: unknown) {
 
   if (input.notify_customer) {
     await Promise.all([
-      createNotification({
-        bookingRequestId: booking.id,
-        appointmentId: appointment.id,
-        channel: 'email',
-        eventType: 'customer_appointment_confirmed_email',
-        recipient: booking.email,
-        subject: `BP Auto Repair confirmed your appointment ${booking.reference}`,
-        body: `Hi ${booking.customer_name}, your ${booking.service_needed} appointment is confirmed for ${input.appointment_date} at ${input.appointment_time}.`
-      }),
+      isPlaceholderEmail(booking.email)
+        ? Promise.resolve(null)
+        : createNotification({
+            bookingRequestId: booking.id,
+            appointmentId: appointment.id,
+            channel: 'email',
+            eventType: 'customer_appointment_confirmed_email',
+            recipient: booking.email,
+            subject: `BP Auto Repair confirmed your appointment ${booking.reference}`,
+            body: `Hi ${booking.customer_name}, your ${booking.service_needed} appointment is confirmed for ${input.appointment_date} at ${input.appointment_time}.`
+          }),
       createNotification({
         bookingRequestId: booking.id,
         appointmentId: appointment.id,
@@ -766,15 +775,17 @@ export async function rescheduleAppointment(id: string, raw: unknown) {
 
   if (booking && input.notify_customer) {
     await Promise.all([
-      createNotification({
-        bookingRequestId: booking.id,
-        appointmentId: updatedAppointment.id,
-        channel: 'email',
-        eventType: 'customer_appointment_rescheduled_email',
-        recipient: booking.email,
-        subject: `BP Auto Repair updated your appointment ${booking.reference}`,
-        body: `Hi ${booking.customer_name}, your ${booking.service_needed} appointment has been updated to ${input.appointment_date} at ${input.appointment_time}.`
-      }),
+      isPlaceholderEmail(booking.email)
+        ? Promise.resolve(null)
+        : createNotification({
+            bookingRequestId: booking.id,
+            appointmentId: updatedAppointment.id,
+            channel: 'email',
+            eventType: 'customer_appointment_rescheduled_email',
+            recipient: booking.email,
+            subject: `BP Auto Repair updated your appointment ${booking.reference}`,
+            body: `Hi ${booking.customer_name}, your ${booking.service_needed} appointment has been updated to ${input.appointment_date} at ${input.appointment_time}.`
+          }),
       createNotification({
         bookingRequestId: booking.id,
         appointmentId: updatedAppointment.id,

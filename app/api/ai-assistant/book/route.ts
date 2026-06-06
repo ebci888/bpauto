@@ -10,10 +10,35 @@ function errorMessage(error: unknown) {
   return 'Could not create booking';
 }
 
+function normalizedPhoneSuffix(value: unknown) {
+  return clean(value).replace(/\D/g, '').slice(-10);
+}
+
+function prepareAssistantBooking(raw: unknown) {
+  if (!raw || typeof raw !== 'object') return raw;
+  const booking = { ...(raw as Record<string, unknown>) };
+  const firstName = clean(booking.first_name) || 'Customer';
+  const phoneSuffix = normalizedPhoneSuffix(booking.phone) || String(Date.now());
+
+  booking.first_name = firstName;
+  booking.last_name = clean(booking.last_name) || 'Customer';
+  booking.email = clean(booking.email) || `no-email-${phoneSuffix}@bpauto.example`;
+
+  const notes = clean(booking.notes);
+  const intakeNotes = [
+    notes,
+    !clean((raw as Record<string, unknown>).last_name) ? 'Last name not collected during voice intake.' : '',
+    !clean((raw as Record<string, unknown>).email) ? 'Email not collected during voice intake.' : ''
+  ].filter(Boolean);
+  booking.notes = intakeNotes.join('\n\n');
+
+  return booking;
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as { conversationId?: unknown; booking?: unknown; bookingDraft?: unknown };
-    const result = await createWebsiteBooking(body.booking, {
+    const result = await createWebsiteBooking(prepareAssistantBooking(body.booking), {
       ip:
         request.headers.get('cf-connecting-ip') ||
         request.headers.get('x-nf-client-connection-ip') ||

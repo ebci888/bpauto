@@ -20,15 +20,17 @@ Conversation rules:
 - If you are unsure whether the customer is speaking Hindi, Punjabi, or English, politely ask which language they prefer.
 - If the customer describes an unsafe symptom, advise them not to drive if it feels unsafe and to call the shop or arrange towing.
 - Do not diagnose with certainty. Use cautious language like "it could be" or "we should inspect it."
-- If the customer wants an appointment, collect full name, phone, email, vehicle, service/symptom, preferred date, and preferred time.
-- Repeat back names, phone numbers, and emails slowly and ask for correction when spelling may be unclear.
-- For names and emails, use the letters from the customer's latest correction exactly. If the spelling is still uncertain, ask them to type it in the chat or booking form.
+- If the customer wants an appointment, collect only: first name, phone number, vehicle, service/symptom, whether they need pickup/tow or will bring it in, preferred date, and preferred time.
+- Do not ask for last name or email during a voice booking unless the customer offers it. The shop can complete those details later.
+- Treat a first name or casual name as enough for voice intake. If the spelling is unclear, do not spend a long time spelling it; save the best version and note "name spelling to confirm".
+- Keep track of the requested date and time across turns. If the customer says "next Tuesday" and later says "10 o'clock", combine them. Do not ask which day again unless there are multiple possible dates.
 - Make clear that bookings are requests until the shop confirms.
-- When you have full name, phone, email, vehicle, service/symptom, preferred date, and preferred time, repeat the summary briefly and ask exactly: "Should I send this booking request now?"
+- When you have first name, phone number, vehicle, service/symptom, pickup/drop-off intent, preferred date, and preferred time, repeat the summary briefly and ask exactly: "Should I send this booking request now?"
 - If the customer clearly says yes after that question, say: "Great, I am sending the request now. I will show the request reference once it goes through."
 - Do not say the booking is confirmed. It is only a request until the shop owner confirms or adjusts the time.
 - Do not ask the customer to tap a button during voice unless the booking request cannot be sent.
 - Keep replies short enough for a phone call.
+- Keep voice calls fast. Avoid form-style questions. If you have enough to create a request, send it and let the shop clean up details later.
 `;
 
 function normalizedOpenAiApiKey() {
@@ -86,16 +88,17 @@ export async function POST(request: Request) {
       output_modalities: ['audio'],
       audio: {
         input: {
+          noise_reduction: {
+            type: process.env.OPENAI_REALTIME_NOISE_REDUCTION || 'far_field'
+          },
           transcription: {
             model: process.env.OPENAI_REALTIME_TRANSCRIBE_MODEL || 'gpt-4o-mini-transcribe',
             prompt:
               'Multilingual BP Auto Repair intake in Surrey, BC. English, Hindi, Punjabi, Hinglish, and Punjabi-English are possible. Auto repair terms: diesel repair, brakes, oil change, check engine light, no-start, battery, alternator, starter, towing, service appointment, Surrey, BP Auto Repair. Keep extracted booking fields in English.'
           },
           turn_detection: {
-            type: 'server_vad',
-            threshold: 0.65,
-            prefix_padding_ms: 500,
-            silence_duration_ms: 1200,
+            type: 'semantic_vad',
+            eagerness: 'low',
             create_response: true,
             interrupt_response: false
           }

@@ -1847,9 +1847,8 @@
   function assistantBookingMissingFields() {
     const draft = assistantBookingDraft || {};
     const missing = [];
-    if (!String(draft.first_name || '').trim() || !String(draft.last_name || '').trim()) missing.push('full name');
+    if (!String(draft.first_name || '').trim()) missing.push('first name');
     if (!String(draft.phone || '').trim()) missing.push('phone');
-    if (!String(draft.email || '').trim()) missing.push('email');
     if (!String(draft.vehicle || '').trim()) missing.push('vehicle');
     if (!String(draft.service || '').trim()) missing.push('service or symptom');
     if (!String(draft.preferred_date || '').trim()) missing.push('preferred date');
@@ -1859,16 +1858,23 @@
 
   function assistantBookingPayload() {
     const draft = assistantBookingDraft || {};
+    const phoneDigits = String(draft.phone || '').replace(/\D/g, '').slice(-10);
     return {
       first_name: String(draft.first_name || '').trim(),
-      last_name: String(draft.last_name || '').trim(),
+      last_name: String(draft.last_name || '').trim() || 'Customer',
       phone: String(draft.phone || '').trim(),
-      email: String(draft.email || '').trim(),
+      email: String(draft.email || '').trim() || `no-email-${phoneDigits || Date.now()}@bpauto.example`,
       vehicle: String(draft.vehicle || '').trim(),
       service: String(draft.service || '').trim(),
       preferred_date: String(draft.preferred_date || '').trim(),
       preferred_time: String(draft.preferred_time || '').trim(),
-      notes: [draft.notes, draft.safety_note, assistantConversationId ? `AI conversation: ${assistantConversationId}` : '']
+      notes: [
+        draft.notes,
+        draft.safety_note,
+        !String(draft.last_name || '').trim() ? 'Last name not collected during voice intake.' : '',
+        !String(draft.email || '').trim() ? 'Email not collected during voice intake.' : '',
+        assistantConversationId ? `AI conversation: ${assistantConversationId}` : ''
+      ]
         .filter(Boolean)
         .join('\n\n'),
       booking_started_at: bookingStartedAt?.value || String(Date.now() - 5000),
