@@ -1668,6 +1668,14 @@
     preferredTime.value = btn.textContent.trim();
   }
 
+  function smsStatusLine(result) {
+    const status = result?.notifications?.customer_sms?.status;
+    if (status === 'sent') return ' A text confirmation has been sent.';
+    if (status === 'failed') return ' The request is in the shop system, but the text confirmation did not send. The shop can follow up manually.';
+    if (status === 'skipped') return ' The request is in the shop system. Text confirmation is not enabled right now.';
+    return '';
+  }
+
   bookingForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!preferredDate.value || !preferredTime.value) {
@@ -1698,7 +1706,7 @@
       if (!response.ok) {
         throw new Error(result.error || 'Could not send booking request.');
       }
-      bookingStatus.textContent = `Thanks ${payload.first_name}. We received your request for ${payload.preferred_date} at ${payload.preferred_time}. Request #${result.booking.reference}.`;
+      bookingStatus.textContent = `Thanks ${payload.first_name}. We received your request for ${payload.preferred_date} at ${payload.preferred_time}. Request #${result.booking.reference}.${smsStatusLine(result)}`;
       bookingStatus.style.color = '#166534';
       bookingForm.reset();
       if (bookingStartedAt) bookingStartedAt.value = String(Date.now());
@@ -1946,11 +1954,11 @@
       addAssistantMessage(
         'assistant',
         isVoiceAutoSubmit
-          ? `All set. Your request has been sent to BP Auto Repair. Reference ${result.booking.reference}. You should receive a text confirmation shortly. The shop will review it and confirm or adjust the time.`
+          ? `All set. Your request has been sent to BP Auto Repair. Reference ${result.booking.reference}.${smsStatusLine(result)} The shop will review it and confirm or adjust the time.`
           : `Your request has been sent to BP Auto Repair. Reference ${result.booking.reference}. The shop will review it and confirm or adjust the time.`
       );
       assistantStatus.textContent = `Request sent. Reference ${result.booking.reference}.`;
-      bookingStatus.textContent = `Thanks ${payload.first_name}. We received your request for ${payload.preferred_date} at ${payload.preferred_time}. Request #${result.booking.reference}.`;
+      bookingStatus.textContent = `Thanks ${payload.first_name}. We received your request for ${payload.preferred_date} at ${payload.preferred_time}. Request #${result.booking.reference}.${smsStatusLine(result)}`;
       bookingStatus.style.color = '#166534';
       resetTurnstile();
       return true;

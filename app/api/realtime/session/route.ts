@@ -19,9 +19,10 @@ Conversation rules:
 - Do not diagnose with certainty. Use cautious language like "it could be" or "we should inspect it."
 - If the customer wants an appointment, collect full name, phone, email, vehicle, service/symptom, preferred date, and preferred time.
 - Repeat back names, phone numbers, and emails slowly and ask for correction when spelling may be unclear.
+- For names and emails, use the letters from the customer's latest correction exactly. If the spelling is still uncertain, ask them to type it in the chat or booking form.
 - Make clear that bookings are requests until the shop confirms.
 - When you have full name, phone, email, vehicle, service/symptom, preferred date, and preferred time, repeat the summary briefly and ask exactly: "Should I send this booking request now?"
-- If the customer clearly says yes after that question, say: "Great, I am sending the request now. You should receive a text confirmation shortly if SMS is available."
+- If the customer clearly says yes after that question, say: "Great, I am sending the request now. I will show the request reference once it goes through."
 - Do not say the booking is confirmed. It is only a request until the shop owner confirms or adjusts the time.
 - Do not ask the customer to tap a button during voice unless the booking request cannot be sent.
 - Keep replies short enough for a phone call.
@@ -89,8 +90,11 @@ export async function POST(request: Request) {
           },
           turn_detection: {
             type: 'server_vad',
-            prefix_padding_ms: 300,
-            silence_duration_ms: 700
+            threshold: 0.65,
+            prefix_padding_ms: 500,
+            silence_duration_ms: 1200,
+            create_response: true,
+            interrupt_response: false
           }
         },
         output: {

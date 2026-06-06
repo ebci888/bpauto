@@ -503,7 +503,7 @@ export async function createWebsiteBooking(raw: unknown, context: BookingSpamCon
     .single();
   if (queueError) throw queueError;
 
-  await Promise.all([
+  const [ownerAlert, customerEmail, customerSms] = await Promise.all([
     createNotification({
       bookingRequestId: booking.id,
       channel: 'owner_alert',
@@ -529,7 +529,17 @@ export async function createWebsiteBooking(raw: unknown, context: BookingSpamCon
     })
   ]);
 
-  return { booking, queueItem, customer, vehicle };
+  return {
+    booking,
+    queueItem,
+    customer,
+    vehicle,
+    notifications: {
+      owner_alert: ownerAlert,
+      customer_email: customerEmail,
+      customer_sms: customerSms
+    }
+  };
 }
 
 export async function createQuickCapture(raw: unknown) {
