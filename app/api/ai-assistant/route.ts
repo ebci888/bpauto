@@ -135,10 +135,12 @@ function inferTimeFromText(text: string) {
 function enrichDraftFromText(draft: BookingDraft, ...texts: string[]) {
   const combined = texts.map(clean).filter(Boolean).join('\n');
   if (!combined) return draft;
+  const inferredDate = inferDateFromText(combined);
+  const inferredTime = inferTimeFromText(combined);
   return {
     ...draft,
-    preferred_date: draft.preferred_date || inferDateFromText(combined),
-    preferred_time: draft.preferred_time || inferTimeFromText(combined)
+    preferred_date: inferredDate || draft.preferred_date,
+    preferred_time: inferredTime || draft.preferred_time
   };
 }
 
@@ -509,7 +511,7 @@ export async function POST(request: Request) {
 
   if (!result) result = fallbackPayload(message, currentDraft);
 
-  const initialBookingDraft = normalizeDraft(enrichDraftFromText(mergeDraft(currentDraft, result.booking_draft), message, result.summary, result.reply));
+  const initialBookingDraft = normalizeDraft(enrichDraftFromText(mergeDraft(currentDraft, result.booking_draft), message));
   const availabilityChecked = await applyAvailabilityCheck(initialBookingDraft, result.reply);
   const bookingDraft = availabilityChecked.draft;
   const missing = missingFields(bookingDraft);
