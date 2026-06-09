@@ -56,6 +56,92 @@ function currentShopDateKey() {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
+function addDays(dateKey: string, days: number) {
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+const weekdayIndex: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6
+};
+
+function currentWeekday(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00Z`).getUTCDay();
+}
+
+function inferDateFromText(text: string) {
+  const lower = text.toLowerCase();
+  const today = currentShopDateKey();
+  const isoDate = lower.match(/\b(20\d{2}-\d{2}-\d{2})\b/)?.[1];
+  if (isoDate) return isoDate;
+  if (/\btoday\b/.test(lower)) return today;
+  if (/\btomorrow\b/.test(lower)) return addDays(today, 1);
+
+  for (const [weekday, targetDay] of Object.entries(weekdayIndex)) {
+    if (!lower.includes(weekday)) continue;
+    const currentDay = currentWeekday(today);
+    let days = targetDay - currentDay;
+    if (days < 0) days += 7;
+    if (days === 0 && /\bnext\b/.test(lower)) days = 7;
+    if (new RegExp(`\\bnext\\s+week\\b[\\s\\S]{0,30}\\b${weekday}\\b|\\b${weekday}\\b[\\s\\S]{0,30}\\bnext\\s+week\\b`).test(lower)) {
+      days = ((targetDay - currentDay + 7) % 7) + 7;
+    } else if (new RegExp(`\\bnext\\s+${weekday}\\b`).test(lower) && days === 0) {
+      days = 7;
+    }
+    return addDays(today, days);
+  }
+
+  return undefined;
+}
+
+function inferMeridian(hour: number) {
+  if (hour === 12) return 'PM';
+  if (hour >= 1 && hour <= 6) return 'PM';
+  return 'AM';
+}
+
+function inferTimeFromText(text: string) {
+  const lower = text.toLowerCase();
+  const explicit = lower.match(/\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)\b/);
+  if (explicit) {
+    const hour = Number(explicit[1]);
+    const minutes = explicit[2] || '00';
+    const meridian = explicit[3].startsWith('p') ? 'PM' : 'AM';
+    return `${hour}:${minutes} ${meridian}`;
+  }
+
+  const oclock = lower.match(/\b(1[0-2]|0?[1-9])\s*(?:o'?clock)\b/);
+  if (oclock) {
+    const hour = Number(oclock[1]);
+    return `${hour}:00 ${inferMeridian(hour)}`;
+  }
+
+  const contextual = lower.match(/\b(?:at|around|about)\s+(1[0-2]|0?[1-9])\b/);
+  if (contextual) {
+    const hour = Number(contextual[1]);
+    return `${hour}:00 ${inferMeridian(hour)}`;
+  }
+
+  return undefined;
+}
+
+function enrichDraftFromText(draft: BookingDraft, ...texts: string[]) {
+  const combined = texts.map(clean).filter(Boolean).join('\n');
+  if (!combined) return draft;
+  return {
+    ...draft,
+    preferred_date: draft.preferred_date || inferDateFromText(combined),
+    preferred_time: draft.preferred_time || inferTimeFromText(combined)
+  };
+}
+
 function assistantInstructions() {
   return `
 You are Ava, a calm, friendly female service-advisor style AI assistant for BP Auto Repair in Surrey, BC.
@@ -423,14 +509,18 @@ export async function POST(request: Request) {
 
   if (!result) result = fallbackPayload(message, currentDraft);
 
-  const initialBookingDraft = normalizeDraft(mergeDraft(currentDraft, result.booking_draft));
+  const initialBookingDraft = normalizeDraft(enrichDraftFromText(mergeDraft(currentDraft, result.booking_draft), message, result.summary, result.reply));
   const availabilityChecked = await applyAvailabilityCheck(initialBookingDraft, result.reply);
   const bookingDraft = availabilityChecked.draft;
   const missing = missingFields(bookingDraft);
+  const reply =
+    missing.length && /\b(sent|submitted|request has been sent|booking request sent)\b/i.test(availabilityChecked.reply)
+      ? `I have most of that. I still need ${missing.join(', ')} before I can send the request.`
+      : availabilityChecked.reply;
   const responsePayload: AssistantPayload = {
     ...defaultAssistantPayload,
     ...result,
-    reply: availabilityChecked.reply,
+    reply,
     booking_draft: bookingDraft,
     missing_fields: missing,
     urgency: result.urgency || bookingDraft.urgency || 'routine',

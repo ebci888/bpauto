@@ -237,7 +237,8 @@ Built behavior:
 - Submitted assistant conversations are linked back to the created booking request for follow-up review.
 - Live voice receptionist uses OpenAI Realtime over WebRTC through `/api/realtime/session`, with server-side OpenAI authentication and customer speech transcript sync into the booking draft.
 - Live voice uses less aggressive VAD settings so small microphone noise is less likely to cut Ava off mid-answer.
-- Live voice now uses semantic VAD with low eagerness and far-field noise reduction to reduce false interruptions from background noise.
+- Live voice uses browser noise suppression with auto-gain reduced, plus higher-threshold server VAD and longer silence detection to reduce false interruptions from background noise.
+- Assistant draft parsing includes deterministic backup extraction for relative dates/weekdays and spoken times like "next Tuesday" and "10 o'clock."
 - Ava asks customers to type uncertain name/email spelling instead of inventing spelling from unclear audio.
 - Live voice and chat can respond in English, Hindi, Punjabi, Hinglish, or Punjabi-English while keeping booking fields, dashboard data, and SMS content normalized in English.
 - Demo mode is intentionally safe: it does not confirm appointments, diagnose with certainty, or quote exact repair prices.
